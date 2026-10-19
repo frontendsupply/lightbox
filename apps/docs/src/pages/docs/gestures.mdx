@@ -16,7 +16,7 @@ description: "The canonical interaction rules. Every input method gets the behav
 | **Tap / click backdrop** | Close (`closeOnBackdropClick`) | Close |
 | **Mouse drag ← →** | Next / previous | Pan |
 | **Mouse drag ↑ ↓** | Pull to dismiss | Pan |
-| **Trackpad two-finger swipe ← →** | Follows your fingers 1:1; on lift-off it turns one page the way you were going (tiny nudges and pull-backs settle back) | Pan |
+| **Trackpad two-finger swipe ← →** | Scrolls 1:1, momentum included, through as many photos as you go; when you stop it settles on the next photo in your direction of travel | Pan |
 | **Horizontal mouse wheel** | One notch, one page | Pan |
 | **Wheel / two-finger scroll ↑ ↓** | — (or zoom with `wheelToZoom`) | Pan (or zoom with `wheelToZoom`) |
 | **Ctrl / ⌘ + wheel** | Zoom around the cursor | Zoom around the cursor |
@@ -29,12 +29,12 @@ description: "The canonical interaction rules. Every input method gets the behav
 - **Swiping is real scrolling.** The viewport is a CSS `scroll-snap` container, so touch swipes get the OS's own
   momentum and overscroll. Idle slides use `touch-action: pan-x`, which hands horizontal drags to the browser and gives us
   vertical ones for free: direction locking without heuristics.
-- **Trackpads feel like Photos.** Browsers never say when your fingers leave the trackpad — macOS just keeps sending
-  "momentum" scroll deltas — so most web carousels wait for those to die out, which feels like a hang after release,
-  and light swipes fall short and snap back. Here the content follows your fingers 1:1 (capped at one photo), lift-off
-  is detected from the momentum's signature (macOS decays it by a steady ~8% a frame; fingers are noisy), and the page
-  turns the way you were going, springing on with your speed. The rest of the momentum is swallowed, so one swipe is
-  one photo. The detector's tests replay swipes recorded from a real MacBook trackpad.
+- **Trackpads scroll like everything else on your Mac.** Every scroll delta moves the photos 1:1 — fingers and
+  momentum alike — with nothing capped, locked or second-guessed mid-gesture. Only when the input is done (a pause, or
+  momentum down to 1–2px crumbs) does a critically damped spring, seeded with your speed, settle on the neighbouring
+  photo in the direction you were moving (once you're 15% into it), never against your motion. Browsers don't expose
+  when fingers leave the trackpad, so anything that guesses it — and then ignores input — will freeze and jump on real
+  hands; this doesn't guess. Tests replay swipes recorded from a real MacBook trackpad.
 - **Three-finger drag pauses on purpose.** If you drag with three fingers (Accessibility → Pointer Control → Trackpad
   Options), macOS holds the drag for a moment after you lift so you can reposition. Every app sees that delay; use a
   two-finger swipe to page.

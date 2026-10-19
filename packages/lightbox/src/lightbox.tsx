@@ -28,7 +28,7 @@ import {
   type Rect,
   type Visual,
 } from './math.ts'
-import { createWheelPager } from './wheel.ts'
+import { createWheelPager, settleTarget } from './wheel.ts'
 
 export interface LightboxItem {
   src: string
@@ -506,16 +506,17 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
     let dragFrom = 0
     let dragging = false
     let glider: AnimationPlaybackControls | null = null
-    let wheelFrom: number | null = null
+    let wheeling = false
+    let glideTarget: number | null = null
     let quiet: ReturnType<typeof setTimeout> | undefined
-    const pager = createWheelPager(() => el.clientWidth)
+    const pager = createWheelPager()
     const stride = () => {
       const [a, b] = el.children as unknown as HTMLElement[]
       return a && b ? b.offsetLeft - a.offsetLeft : el.clientWidth
     }
     const maxLeft = () => el.scrollWidth - el.clientWidth
     const restore = () => {
-      if (dragging || glider || wheelFrom !== null) return
+      if (dragging || glider || wheeling) return
       el.style.scrollSnapType = SNAP
       el.style.scrollBehavior = ''
     }
@@ -528,17 +529,21 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
     }
     const glide = (i: number, velocity = 0) => {
       takeOver()
-      const to = clamp(i, 0, count - 1) * stride()
+      const target = clamp(i, 0, count - 1)
+      const to = target * stride()
       if (reducedMotion || Math.abs(el.scrollLeft - to) < 0.5) {
         el.scrollLeft = to
+        glideTarget = null
         return restore()
       }
+      glideTarget = target
       glider = animate(el.scrollLeft, to, {
         ...GLIDE,
         velocity: clamp(velocity, -8000, 8000),
         onUpdate: (x) => (el.scrollLeft = x),
         onComplete: () => {
           glider = null
+          glideTarget = null
           restore()
         },
       })
@@ -547,7 +552,7 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
       goTo: (i, behavior) => (behavior === 'instant' ? ((el.scrollLeft = i * stride()), restore()) : glide(i)),
       freeze(i) {
         dragging = false
-        wheelFrom = null
+        wheeling = false
         pager.reset()
         takeOver()
         el.scrollLeft = i * stride()
@@ -572,16 +577,16 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
       },
     }
 
-    // Trackpad swipes and horizontal mouse wheels: follow the fingers, then one page per swipe (see wheel.ts).
-    const release = (dir: number, velocity: number) => {
-      if (wheelFrom === null) return
-      const from = Math.round(wheelFrom / stride())
-      wheelFrom = null
-      glide(from + dir, velocity)
+    // Trackpad swipes and horizontal mouse wheels (see wheel.ts): every delta scrolls, 1:1, across as many
+    // slides as the user goes; once the input is done, settle on the neighbour in the direction of travel.
+    const settleWheel = (dir: number, velocity: number) => {
+      wheeling = false
+      const s = stride()
+      glide(settleTarget(el.scrollLeft / s, dir, Math.min(0.15, 100 / s)), velocity)
     }
-    const settleWheel = () => {
-      const step = pager.end()
-      if (step?.type === 'release') release(step.dir, step.velocity)
+    const onIdle = () => {
+      const step = pager.idle()
+      if (step?.type === 'settle') settleWheel(step.dir, step.velocity)
     }
     const onWheel = (e: WheelEvent) => {
       // Zoomed images pan and pinches zoom (both handled, and prevented, by <Image>).
@@ -591,18 +596,16 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
       if (!pager.busy && Math.abs(dx) <= Math.abs(e.deltaY * unit)) return
       e.preventDefault()
       const step = pager.wheel(dx, e.timeStamp, e.deltaMode !== 0)
-      if (step.type === 'ignore') return
-      if (wheelFrom === null) {
-        takeOver()
-        wheelFrom = el.scrollLeft
-      }
       clearTimeout(quiet)
-      if (step.type === 'follow') {
-        // 1:1 up to one page either way, then resist: a swipe is one photo however far it goes.
-        const s = stride()
-        el.scrollLeft = clamp(wheelFrom + band(step.offset, -s, s, el.clientWidth), 0, maxLeft())
-        quiet = setTimeout(settleWheel, 110)
-      } else release(step.dir, step.velocity)
+      if (step.type === 'ignore') return
+      if (step.type === 'page') return glide((glideTarget ?? Math.round(el.scrollLeft / stride())) + step.dir)
+      if (step.type === 'settle') return settleWheel(step.dir, step.velocity)
+      if (!wheeling) {
+        takeOver()
+        wheeling = true
+      }
+      el.scrollLeft = clamp(el.scrollLeft + step.by, 0, maxLeft())
+      quiet = setTimeout(onIdle, 90)
     }
     // A finger or a mouse button takes over from any glide in flight.
     const onPointerDown = () => {

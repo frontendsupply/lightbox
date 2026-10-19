@@ -1,99 +1,84 @@
 /**
- * Turns horizontal wheel deltas (trackpad swipes, mouse wheels) into page turns that feel like Photos.
+ * Horizontal wheel input (trackpad swipes, mouse wheels) for a paged viewer.
  *
- * Browsers don't say when fingers leave a trackpad; after lift-off macOS keeps sending "momentum"
- * deltas. Waiting for those to die out (what scroll-snap and most carousels do) makes a light swipe
- * land short and snap back, and the viewer seems to hang after release. Instead:
+ * Rule one: never ignore the fingers. Every delta — finger or macOS momentum — moves the content 1:1,
+ * through as many slides as the user scrolls, exactly like native scrolling. Nothing is capped,
+ * locked or decided mid-gesture: guessing gesture phases from deltas misfires on real hands and
+ * makes the content freeze, then jump.
  *
- * - follow the fingers 1:1 for the whole swipe;
- * - spot lift-off from the momentum signature — macOS decays it by a steady ~8% per frame, while
- *   fingers are noisy — or from the deltas stopping;
- * - decide from where the content is *and* how fast it was moving at lift-off, then swallow the rest
- *   of the momentum so one swipe is one page. A new swipe is told apart from the tail by a pause, a
- *   reversal, or deltas rising again.
+ * Only when the input is finished does a settle happen, toward the neighbouring slide in the
+ * direction of travel. "Finished" is either a pause, or a momentum tail that has shrunk to crumbs
+ * (≤2px a frame after real motion) — waiting those out would read as a hang. Crumbs that keep
+ * arriving during the settle are swallowed; anything bigger is the fingers again and takes over.
  */
 export type WheelStep =
-  | { type: 'follow'; offset: number } // move content to gesture start + offset
-  | { type: 'release'; dir: -1 | 0 | 1; velocity: number } // settle: next/prev/back; velocity in px/s
-  | { type: 'ignore' } // momentum of a gesture already released
+  | { type: 'move'; by: number }
+  | { type: 'settle'; dir: -1 | 0 | 1; velocity: number } // velocity in px/s, to seed the spring
+  | { type: 'page'; dir: -1 | 1 } // a mouse-wheel notch
+  | { type: 'ignore' }
 
 type Sample = { t: number; d: number }
 
-/** Four strictly decaying deltas with momentum-like ratios. */
-function isMomentum(s: Sample[]) {
-  if (s.length < 4) return false
-  const [a, b, c, d] = s.slice(-4).map((x) => x.d) as [number, number, number, number]
-  if (Math.sign(a) !== Math.sign(d) || Math.abs(a) < 6) return false
-  const ok = (x: number, y: number) => {
-    const r = Math.abs(y) / Math.abs(x)
-    return r >= 0.84 && r < 0.985
-  }
-  return ok(a, b) && ok(b, c) && ok(c, d)
-}
+const CRUMB = 2
 
-export function createWheelPager(size: () => number) {
-  let gesture: { acc: number; samples: Sample[] } | null = null
-  let lock: { dir: number; last: number; since: number; min: number } | null = null
+export function createWheelPager() {
+  let recent: Sample[] = []
+  let peak = 0
+  let settling: { last: number; t: number; dir: number } | null = null
 
-  // Project where the swipe was heading: a light swipe forward means forward.
-  const decide = (acc: number, v: number): -1 | 0 | 1 => {
-    const projected = acc + v * 250
-    // Finger travel doesn't grow with the screen, so the threshold is capped in pixels.
-    return Math.abs(projected) > Math.min(size() * 0.18, 120) ? (Math.sign(projected) as -1 | 1) : 0
+  const finish = (): WheelStep => {
+    const sum = recent.reduce((s, x) => s + x.d, 0)
+    const [first, ...rest] = recent
+    const v = first && rest.length ? (rest.reduce((s, x) => s + x.d, 0) / Math.max(1, rest.at(-1)!.t - first.t)) * 1000 : 0
+    recent = []
+    peak = 0
+    return { type: 'settle', dir: Math.sign(sum) as -1 | 0 | 1, velocity: v }
   }
 
   return {
-    /** Mid-swipe or still swallowing a momentum tail: every wheel event is ours. */
+    /** Input in progress or a settle still swallowing crumbs: every wheel event is ours. */
     get busy() {
-      return !!gesture || !!lock
+      return recent.length > 0 || !!settling
     },
     wheel(d: number, t: number, discrete: boolean): WheelStep {
-      if (lock) {
-        const abs = Math.abs(d)
-        const quiet = t - lock.last > 160
-        const reversed = Math.sign(d) === -lock.dir && abs > 3
-        const rising = t - lock.since > 220 && abs > lock.min * 1.6 + 3
-        lock.last = t
-        lock.min = Math.min(lock.min, abs)
-        if (!quiet && !reversed && !rising) return { type: 'ignore' }
-        lock = null
+      if (settling) {
+        const crumb = Math.sign(d) === settling.dir && Math.abs(d) <= Math.min(3, Math.abs(settling.last) + 1) && t - settling.t < 120
+        settling.last = d
+        settling.t = t
+        if (crumb) return { type: 'ignore' }
+        settling = null
       }
-      // Mouse wheels: one notch, one page.
-      if (discrete || (!gesture && Math.abs(d) >= 50)) {
-        gesture = null
-        lock = { dir: Math.sign(d), last: t, since: t, min: Math.abs(d) }
-        return { type: 'release', dir: Math.sign(d) as -1 | 1, velocity: 0 }
+      if (discrete || (!recent.length && Math.abs(d) >= 50)) return { type: 'page', dir: Math.sign(d) as -1 | 1 }
+      recent.push({ t, d })
+      recent = recent.filter((s) => t - s.t <= 100)
+      peak = Math.max(peak, Math.abs(d))
+      const tail = recent.slice(-3)
+      if (peak >= 4 && tail.length === 3 && tail.every((s) => Math.abs(s.d) <= CRUMB && Math.sign(s.d) === Math.sign(d))) {
+        settling = { last: d, t, dir: Math.sign(d) }
+        return finish()
       }
-      gesture ??= { acc: 0, samples: [] }
-      gesture.acc += d
-      gesture.samples.push({ t, d })
-      if (gesture.samples.length > 8) gesture.samples.shift()
-      if (isMomentum(gesture.samples)) {
-        // The first decaying delta is the speed the fingers had when they lifted.
-        const s = gesture.samples
-        const lift = s[s.length - 4]!
-        const prev = s[s.length - 5]
-        const v = lift.d / Math.max(8, prev ? lift.t - prev.t : 16) // px/ms
-        const { acc } = gesture
-        gesture = null
-        lock = { dir: Math.sign(d), last: t, since: t, min: Math.abs(d) }
-        return { type: 'release', dir: decide(acc, v), velocity: v * 1000 }
-      }
-      return { type: 'follow', offset: gesture.acc }
+      return { type: 'move', by: d }
     },
-    /** The deltas stopped without momentum: the fingers lifted while (almost) still. */
-    end(): WheelStep | null {
-      if (!gesture) return null
-      const { acc, samples } = gesture
-      gesture = null
-      // The last few deltas say which way the fingers were last going: pulling back before lifting cancels.
-      const recent = samples.slice(-3)
-      const v = recent.reduce((sum, x) => sum + x.d, 0) / (16 * recent.length)
-      return { type: 'release', dir: decide(acc, v), velocity: 0 }
+    /** No input for a while: the fingers lifted without momentum. */
+    idle(): WheelStep | null {
+      return recent.length ? finish() : null
     },
     reset() {
-      gesture = null
-      lock = null
+      recent = []
+      peak = 0
+      settling = null
     },
   }
+}
+
+/**
+ * Which slide to settle on from fractional position `p`, moving `dir`: the next one in the direction
+ * of travel once at least `threshold` (fraction of a slide) into it, otherwise back. Never against
+ * the motion.
+ */
+export function settleTarget(p: number, dir: number, threshold: number) {
+  const eps = 1e-6
+  if (dir > 0) return p - Math.floor(p + eps) >= threshold ? Math.floor(p + eps) + 1 : Math.floor(p + eps)
+  if (dir < 0) return Math.ceil(p - eps) - p >= threshold ? Math.ceil(p - eps) - 1 : Math.ceil(p - eps)
+  return Math.round(p)
 }
