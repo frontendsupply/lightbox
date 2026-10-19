@@ -28,7 +28,7 @@ import {
   type Rect,
   type Visual,
 } from './math.ts'
-import { createWheelPager, settleTarget } from './wheel.ts'
+import { createPaging, type Scroller } from './paging.ts'
 
 export interface LightboxItem {
   src: string
@@ -503,132 +503,102 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
   React.useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    let dragFrom = 0
-    let dragging = false
-    let glider: AnimationPlaybackControls | null = null
-    let wheeling = false
-    let glideTarget: number | null = null
-    let quiet: ReturnType<typeof setTimeout> | undefined
-    const pager = createWheelPager()
     const stride = () => {
       const [a, b] = el.children as unknown as HTMLElement[]
       return a && b ? b.offsetLeft - a.offsetLeft : el.clientWidth
     }
-    const maxLeft = () => el.scrollWidth - el.clientWidth
-    const restore = () => {
-      if (dragging || glider || wheeling) return
-      el.style.scrollSnapType = SNAP
-      el.style.scrollBehavior = ''
+    const scroller: Scroller = {
+      get left() {
+        return el.scrollLeft
+      },
+      set left(v) {
+        el.scrollLeft = v
+      },
+      get stride() {
+        return stride()
+      },
+      get max() {
+        return el.scrollWidth - el.clientWidth
+      },
+      count,
+      // Snapping and CSS smooth scrolling would both fight a position we drive frame by frame.
+      snap(on) {
+        el.style.scrollSnapType = on ? SNAP : 'none'
+        el.style.scrollBehavior = on ? '' : 'auto'
+      },
     }
-    // Snapping and CSS smooth scrolling would both fight a scroll position we drive frame by frame.
-    const takeOver = () => {
-      glider?.stop()
-      glider = null
-      el.style.scrollSnapType = 'none'
-      el.style.scrollBehavior = 'auto'
+    // Opt-in diagnostics: set window.__LIGHTBOX_TRACE__ = (event) => … to record what paging does.
+    const trace = (event: object) => {
+      const hook = (globalThis as { __LIGHTBOX_TRACE__?: (e: object) => void }).__LIGHTBOX_TRACE__
+      hook?.({ ...event, left: Math.round(el.scrollLeft), t: Math.round(performance.now()) })
     }
-    const glide = (i: number, velocity = 0) => {
-      takeOver()
-      const target = clamp(i, 0, count - 1)
-      const to = target * stride()
-      if (reducedMotion || Math.abs(el.scrollLeft - to) < 0.5) {
-        el.scrollLeft = to
-        glideTarget = null
-        return restore()
-      }
-      glideTarget = target
-      glider = animate(el.scrollLeft, to, {
-        ...GLIDE,
-        velocity: clamp(velocity, -8000, 8000),
-        onUpdate: (x) => (el.scrollLeft = x),
-        onComplete: () => {
-          glider = null
-          glideTarget = null
-          restore()
-        },
-      })
+    const snap = scroller.snap
+    scroller.snap = (on) => {
+      trace({ type: 'snap', on })
+      snap(on)
     }
+    // All the paging logic — wheel, drag, glides, settling — lives in paging.ts, where it is fuzz-tested.
+    const paging = createPaging(
+      scroller,
+      (from, to, velocity, onUpdate, onComplete) => {
+        trace({ type: 'glide', from: Math.round(from), to: Math.round(to), velocity: Math.round(velocity) })
+        return animate(from, to, { ...GLIDE, velocity, onUpdate, onComplete: () => (trace({ type: 'glide-end' }), onComplete()) })
+      },
+      (fn, ms) => {
+        const id = setTimeout(fn, ms)
+        return () => clearTimeout(id)
+      },
+      () => reducedMotion,
+    )
     viewport.current = {
-      goTo: (i, behavior) => (behavior === 'instant' ? ((el.scrollLeft = i * stride()), restore()) : glide(i)),
-      freeze(i) {
-        dragging = false
-        wheeling = false
-        pager.reset()
-        takeOver()
-        el.scrollLeft = i * stride()
-        restore()
-      },
-      dragStart() {
-        takeOver()
-        dragging = true
-        dragFrom = el.scrollLeft
-      },
-      dragMove(dx) {
-        const want = dragFrom - dx
-        const left = clamp(want, 0, maxLeft())
-        el.scrollLeft = left
-        return want - left
-      },
-      dragEnd(vx) {
-        dragging = false
-        const s = stride()
-        const from = Math.round(dragFrom / s)
-        glide(clamp(Math.round((el.scrollLeft - vx * 0.3) / s), from - 1, from + 1), -vx)
-      },
+      goTo: (i, behavior) => (trace({ type: 'goTo', i }), paging.goTo(i, behavior === 'instant')),
+      freeze: (i) => (trace({ type: 'freeze', i }), paging.freeze(i)),
+      dragStart: () => (trace({ type: 'drag-start' }), paging.dragStart()),
+      dragMove: paging.dragMove,
+      dragEnd: (vx) => (trace({ type: 'drag-end', vx: Math.round(vx) }), paging.dragEnd(vx)),
     }
 
-    // Trackpad swipes and horizontal mouse wheels (see wheel.ts): every delta scrolls, 1:1, across as many
-    // slides as the user goes; once the input is done, settle on the neighbour in the direction of travel.
-    const settleWheel = (dir: number, velocity: number, flick: boolean) => {
-      wheeling = false
-      const s = stride()
-      // A flick turns to the next slide however little it travelled; otherwise it has to be 15% (≤100px) in.
-      glide(settleTarget(el.scrollLeft / s, dir, flick ? 0.01 : Math.min(0.15, 100 / s)), velocity)
-    }
-    const onIdle = () => {
-      const step = pager.idle()
-      if (step?.type === 'settle') settleWheel(step.dir, step.velocity, step.flick)
-    }
     const onWheel = (e: WheelEvent) => {
-      // Zoomed images pan and pinches zoom (both handled, and prevented, by <Image>).
-      if (e.defaultPrevented || e.ctrlKey || e.metaKey) return
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientWidth : 1
-      const dx = e.deltaX * unit
-      if (!pager.busy && Math.abs(dx) <= Math.abs(e.deltaY * unit)) return
+      if (e.defaultPrevented) return // the image zoomed or panned with it
+      // Chromium lets only the first event of a scroll sequence be cancelled; one that slips through
+      // hands the whole gesture to native scrolling, fighting ours. So every wheel event here is ours.
       e.preventDefault()
-      const step = pager.wheel(dx, e.timeStamp, e.deltaMode !== 0)
-      clearTimeout(quiet)
-      if (step.type === 'ignore') return
-      if (step.type === 'page') return glide((glideTarget ?? Math.round(el.scrollLeft / stride())) + step.dir)
-      if (step.type === 'settle') return settleWheel(step.dir, step.velocity, step.flick)
-      if (!wheeling) {
-        takeOver()
-        wheeling = true
-      }
-      el.scrollLeft = clamp(el.scrollLeft + step.by, 0, maxLeft())
-      quiet = setTimeout(onIdle, 90)
+      if (e.ctrlKey || e.metaKey) return
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientWidth : 1
+      paging.wheel({ dx: e.deltaX * unit, dy: e.deltaY * unit, t: e.timeStamp, discrete: e.deltaMode !== 0 })
+      trace({ type: 'wheel', dx: e.deltaX, dy: e.deltaY, deltaMode: e.deltaMode, cancelable: e.cancelable, mode: paging.mode })
     }
-    // A finger or a mouse button takes over from any glide in flight.
-    const onPointerDown = () => {
-      if (!glider) return
-      glider.stop()
-      glider = null
-      restore()
+    // Touch scrolling stays native; we only make sure nothing is ever left between two slides.
+    let scrolled = false
+    const onPointerDown = (e: PointerEvent) => {
+      scrolled = false
+      if (e.pointerType !== 'mouse') paging.pointerDown()
+      trace({ type: 'pointerdown', pointerType: e.pointerType, mode: paging.mode })
+    }
+    // (pointercancel means the browser just started a native pan — scrollend will follow, so no rest() there)
+    const onPointerUp = () => !scrolled && paging.rest()
+    const onScrollEnd = () => {
+      paging.rest()
+      trace({ type: 'scrollend', mode: paging.mode })
     }
     const onScroll = () => {
+      scrolled = true
       const p = el.scrollLeft / stride()
       progress.set(p)
       onScrollIndex(clamp(Math.round(p), 0, count - 1))
     }
     el.addEventListener('scroll', onScroll, { passive: true })
+    el.addEventListener('scrollend', onScrollEnd)
     el.addEventListener('wheel', onWheel, { passive: false })
     el.addEventListener('pointerdown', onPointerDown, true)
+    el.addEventListener('pointerup', onPointerUp, true)
     return () => {
-      clearTimeout(quiet)
-      glider?.stop()
+      paging.dispose()
       el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('scrollend', onScrollEnd)
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('pointerdown', onPointerDown, true)
+      el.removeEventListener('pointerup', onPointerUp, true)
       viewport.current = null
     }
   }, [viewport, onScrollIndex, count, progress, reducedMotion])

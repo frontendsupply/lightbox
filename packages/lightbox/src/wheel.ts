@@ -35,8 +35,9 @@ export function createWheelPager() {
     const [first, ...rest] = recent
     const v = first && rest.length ? (rest.reduce((s, x) => s + x.d, 0) / Math.max(1, rest.at(-1)!.t - first.t)) * 1000 : 0
     // A quick swipe means "next" even if the momentum carried it only a little way (macOS keeps that short).
-    // The last direction wins: a flick that was then pulled back is a pull-back.
-    const dir = Math.sign(sum || travel) as -1 | 0 | 1
+    // The overall direction, unless the last moments clearly went the other way (a pull-back);
+    // a pixel of jitter as the fingers stop must not flip a 45% swipe backwards.
+    const dir = Math.sign(Math.abs(sum) >= 10 ? sum : travel) as -1 | 0 | 1
     const flick = speed >= 0.45 && Math.abs(travel) >= 30 && Math.sign(travel) === dir
     recent = []
     peak = 0
