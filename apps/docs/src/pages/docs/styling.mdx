@@ -43,22 +43,35 @@ inside its slide. Everything else — colours, spacing, z-index, chrome — is y
 
 Slides are plain elements in a real scroller, so CSS [scroll-driven animations](https://developer.mozilla.org/docs/Web/CSS/CSS_scroll-driven_animations)
 work on them with no JavaScript. Animate an element *inside* the slide, never the slide itself: browsers compute snap
-points from the slide's transformed box, so transforming it moves the snap targets mid-swipe. The
-[Stories](/docs/examples/stories) cube is a full-size child of each slide (`absolute inset-0`) with just this:
+points from the slide's transformed box, so transforming it moves the snap targets mid-swipe.
+
+The [Stories](/docs/examples/stories) cube makes each slide exactly card-wide (so neighbouring cards share an edge and
+one swipe is one face), then turns a full-size child of each slide with the scroll position. Each face cancels its scroll
+offset, shares one vanishing point at the screen centre and rotates about the cube's axis half a face-width behind the
+screen; the animation range spans one face either side of centre, so neighbours rest edge-on:
 
 ```css
 .story-face {
-  animation: story-turn linear both, story-origin steps(1, end) both;
-  animation-timeline: view(inline), view(inline);
+  animation: story-cube linear both;
+  animation-timeline: view(inline);
+  animation-range: cover calc(50% - var(--card-w)) cover calc(50% + var(--card-w));
+  backface-visibility: hidden;
 }
-@keyframes story-turn {
-  0% { transform: perspective(1400px) rotateY(80deg); }
-  50% { transform: none; }
-  100% { transform: perspective(1400px) rotateY(-80deg); }
-}
-@keyframes story-origin {
-  0% { transform-origin: 0% 50%; }
-  50%, 100% { transform-origin: 100% 50%; }
+@keyframes story-cube {
+  0% {
+    transform: translateX(calc(var(--card-w) * -1)) perspective(calc(var(--card-w) * 2.5))
+      translateZ(calc(var(--card-w) / -2)) rotateY(90deg) translateZ(calc(var(--card-w) / 2));
+    filter: brightness(0.45);
+  }
+  50% {
+    transform: translateX(0) perspective(calc(var(--card-w) * 2.5))
+      translateZ(calc(var(--card-w) / -2)) rotateY(0deg) translateZ(calc(var(--card-w) / 2));
+  }
+  100% {
+    transform: translateX(var(--card-w)) perspective(calc(var(--card-w) * 2.5))
+      translateZ(calc(var(--card-w) / -2)) rotateY(-90deg) translateZ(calc(var(--card-w) / 2));
+    filter: brightness(0.45);
+  }
 }
 ```
 

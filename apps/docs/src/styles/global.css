@@ -27,32 +27,32 @@ body {
   @apply rounded-xl border border-neutral-200 text-[13px] leading-relaxed dark:border-neutral-800;
 }
 
-/* Stories: a cube page-turn driven purely by CSS scroll-driven animations. */
+/*
+ * Stories: the cards are the faces of a cube, turned by nothing but the native scroll position
+ * (CSS scroll-driven animation). Each face cancels its scroll offset, shares one vanishing point
+ * at the screen centre, and rotates around the cube's axis half a face-width behind the screen.
+ * The range spans exactly one face either side of centre, so neighbours rest edge-on (±90°).
+ */
 @supports (animation-timeline: view()) {
   .story-face {
-    animation: story-turn linear both, story-origin steps(1, end) both;
-    animation-timeline: view(inline), view(inline);
+    animation: story-cube linear both;
+    animation-timeline: view(inline);
+    animation-range: cover calc(50% - var(--card-w)) cover calc(50% + var(--card-w));
     backface-visibility: hidden;
   }
 }
-@keyframes story-turn {
+@keyframes story-cube {
   0% {
-    transform: perspective(1400px) rotateY(80deg);
+    transform: translateX(calc(var(--card-w) * -1)) perspective(calc(var(--card-w) * 2.5)) translateZ(calc(var(--card-w) / -2)) rotateY(90deg) translateZ(calc(var(--card-w) / 2));
+    filter: brightness(0.45);
   }
   50% {
-    transform: none;
+    transform: translateX(0) perspective(calc(var(--card-w) * 2.5)) translateZ(calc(var(--card-w) / -2)) rotateY(0deg) translateZ(calc(var(--card-w) / 2));
+    filter: brightness(1);
   }
   100% {
-    transform: perspective(1400px) rotateY(-80deg);
-  }
-}
-@keyframes story-origin {
-  0% {
-    transform-origin: 0% 50%;
-  }
-  50%,
-  100% {
-    transform-origin: 100% 50%;
+    transform: translateX(var(--card-w)) perspective(calc(var(--card-w) * 2.5)) translateZ(calc(var(--card-w) / -2)) rotateY(-90deg) translateZ(calc(var(--card-w) / 2));
+    filter: brightness(0.45);
   }
 }
 

@@ -31,7 +31,7 @@ const chevron = (d: string) => (
   </svg>
 )
 
-function StoryChrome({ person, slide, frame, onStep }: { person: (typeof people)[number]; slide: number; frame: number; onStep: (dir: 1 | -1) => void }) {
+function StoryChrome({ person, slide, frame, onDone }: { person: (typeof people)[number]; slide: number; frame: number; onDone: () => void }) {
   const { index, phase } = useLightbox()
   const playing = index === slide && phase === 'open'
 
@@ -41,9 +41,8 @@ function StoryChrome({ person, slide, frame, onStep }: { person: (typeof people)
     if (playing && next) new window.Image().src = frameUrl(next)
   }, [playing, person, frame])
 
-  const side = 'pointer-events-auto absolute top-1/2 hidden size-9 -translate-y-1/2 place-items-center rounded-full bg-white/15 backdrop-blur transition hover:bg-white/25 sm:grid'
   return (
-    <div className="pointer-events-none absolute inset-0 grid place-items-center sm:p-3 sm:py-8">
+    <div className="pointer-events-none absolute inset-0 grid place-items-center sm:py-8">
       {/* Same box as the fitted 9:16 image, via container query units on the slide. */}
       <div className="relative aspect-[9/16] w-[min(100cqw,calc(100cqh*9/16))] opacity-(--lightbox-presence)">
         <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/55 to-transparent p-3 pb-12 transition-opacity group-data-dragging:opacity-0 sm:rounded-t-2xl">
@@ -55,7 +54,7 @@ function StoryChrome({ person, slide, frame, onStep }: { person: (typeof people)
                   <div
                     key={frame}
                     className="h-full origin-left animate-[story-progress_5s_linear_forwards] bg-white group-active/slide:[animation-play-state:paused] group-data-dragging:[animation-play-state:paused]"
-                    onAnimationEnd={() => onStep(1)}
+                    onAnimationEnd={onDone}
                   />
                 )}
               </div>
@@ -70,10 +69,22 @@ function StoryChrome({ person, slide, frame, onStep }: { person: (typeof people)
             </Lightbox.Close>
           </div>
         </div>
-        <button type="button" aria-label="Previous" className={`${side} -left-12`} onClick={() => onStep(-1)}>
+      </div>
+    </div>
+  )
+}
+
+/** Arrows beside the card. They live in the overlay, not on a face, so they stay put while the cube turns. */
+function StoryArrows({ onStep }: { onStep: (dir: 1 | -1) => void }) {
+  const side =
+    'pointer-events-auto absolute top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full bg-white/15 backdrop-blur transition hover:bg-white/25 sm:grid'
+  return (
+    <div className="pointer-events-none absolute inset-0 opacity-(--lightbox-presence)">
+      <div className="absolute inset-0 transition-opacity group-data-dragging:opacity-0">
+        <button type="button" aria-label="Previous" className={`${side} left-[calc(50%_-_var(--card-w)/2_-_3.5rem)]`} onClick={() => onStep(-1)}>
           {chevron('m15 18-6-6 6-6')}
         </button>
-        <button type="button" aria-label="Next" className={`${side} -right-12`} onClick={() => onStep(1)}>
+        <button type="button" aria-label="Next" className={`${side} right-[calc(50%_-_var(--card-w)/2_-_3.5rem)]`} onClick={() => onStep(1)}>
           {chevron('m9 18 6-6-6-6')}
         </button>
       </div>
@@ -96,19 +107,22 @@ function Viewer({ frames, setFrame }: { frames: number[]; setFrame: (person: num
     <Lightbox.Portal>
       <Lightbox.Backdrop className="z-50 bg-neutral-950" />
       <Lightbox.Popup
-        className="group z-50 text-white outline-none"
+        // The card: the largest 9:16 that fits (leaving room for the arrows on wider screens).
+        className="group z-50 text-white outline-none [--card-w:min(100vw,calc(100dvh*9/16))] sm:[--card-w:min(100vw_-_8rem,calc((100dvh_-_4rem)*9/16))]"
         onKeyDown={(e) => {
           if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
           e.preventDefault() // replaces the default slide navigation
           step(index, e.key === 'ArrowRight' ? 1 : -1)
         }}
       >
-        <Lightbox.Viewport>
+        {/* Slides as wide as the card, so neighbouring cards share an edge and one swipe is one face. */}
+        <Lightbox.Viewport className="px-[calc(50%_-_var(--card-w)/2)]">
           {people.map((person, i) => (
             <Lightbox.Slide
               key={person.name}
               index={i}
-              className="group/slide [container-type:size] sm:p-3 sm:py-8"
+              style={{ flex: '0 0 var(--card-w)', overflow: 'visible' }}
+              className="group/slide [container-type:size] sm:py-8"
               onTap={(e) => {
                 if (e.target !== 'image') return
                 e.preventDefault()
@@ -118,11 +132,12 @@ function Viewer({ frames, setFrame }: { frames: number[]; setFrame: (person: num
               {/* The cube turn rotates this face, never the slide: snap points come from the slide's box. */}
               <div className="story-face absolute inset-0">
                 <Lightbox.Image src={frameUrl(person.frames[frames[i]!]!)} className="sm:rounded-2xl" />
-                <StoryChrome person={person} slide={i} frame={frames[i]!} onStep={(dir) => step(i, dir)} />
+                <StoryChrome person={person} slide={i} frame={frames[i]!} onDone={() => step(i, 1)} />
               </div>
             </Lightbox.Slide>
           ))}
         </Lightbox.Viewport>
+        <StoryArrows onStep={(dir) => step(index, dir)} />
       </Lightbox.Popup>
     </Lightbox.Portal>
   )
