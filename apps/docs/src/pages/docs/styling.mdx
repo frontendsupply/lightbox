@@ -27,7 +27,7 @@ inside its slide. Everything else — colours, spacing, z-index, chrome — is y
 | `data-dragging` | Popup | Pull-to-dismiss in progress |
 | `data-ui-hidden` | Popup | User tapped the image to hide chrome |
 | `data-current` | Slide | The slide in view |
-| `data-active` | Trigger | Its item is open (the trigger is hidden while open) |
+| `data-active` | Trigger | Its item is open (its `<img>` is hidden meanwhile) |
 | `data-loaded` | Image | The full image has loaded |
 | `data-disabled` | Prev, Next | At the first / last item |
 | `--lightbox-presence` | Popup, Backdrop | `0 → 1` as the viewer opens; follows pull-to-dismiss and pinch-to-close |
@@ -42,10 +42,12 @@ inside its slide. Everything else — colours, spacing, z-index, chrome — is y
 ## Scroll-driven effects
 
 Slides are plain elements in a real scroller, so CSS [scroll-driven animations](https://developer.mozilla.org/docs/Web/CSS/CSS_scroll-driven_animations)
-work on them with no JavaScript. The [Stories](/docs/examples/stories) cube is just this:
+work on them with no JavaScript. Animate an element *inside* the slide, never the slide itself: browsers compute snap
+points from the slide's transformed box, so transforming it moves the snap targets mid-swipe. The
+[Stories](/docs/examples/stories) cube is a full-size child of each slide (`absolute inset-0`) with just this:
 
 ```css
-.story-slide {
+.story-face {
   animation: story-turn linear both, story-origin steps(1, end) both;
   animation-timeline: view(inline), view(inline);
 }

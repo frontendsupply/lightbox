@@ -27,7 +27,7 @@ export default function Listing() {
     <Lightbox.Root items={photos}>
       <div className="relative grid h-72 grid-cols-4 grid-rows-2 gap-2 overflow-hidden rounded-2xl sm:h-96">
         {photos.slice(0, 5).map((photo, i) => (
-          <Lightbox.Trigger key={photo.src} index={i} className={cn('overflow-hidden', i === 0 ? 'col-span-4 row-span-2 sm:col-span-2' : 'hidden sm:block')}>
+          <Lightbox.Trigger key={photo.src} index={i} className={cn('overflow-hidden bg-neutral-200 dark:bg-neutral-800', i === 0 ? 'col-span-4 row-span-2 sm:col-span-2' : 'hidden sm:block')}>
             <img src={photo.thumb} alt={photo.caption} className="size-full object-cover transition duration-300 hover:brightness-90" />
           </Lightbox.Trigger>
         ))}
@@ -52,7 +52,7 @@ export default function Listing() {
       <h4 className="mt-10 mb-3 font-semibold">All photos</h4>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {photos.map((photo, i) => (
-          <Lightbox.Trigger key={photo.src} index={i} className="overflow-hidden rounded-xl">
+          <Lightbox.Trigger key={photo.src} index={i} className="overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900">
             <img src={photo.thumb} alt={photo.caption} className="aspect-[4/3] size-full object-cover" />
           </Lightbox.Trigger>
         ))}

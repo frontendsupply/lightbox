@@ -91,7 +91,9 @@ export function Thumbnails() {
   const { items, index, goTo } = useLightbox<LightboxItem & { thumb?: string }>()
   const ref = React.useRef<HTMLDivElement>(null)
   React.useEffect(() => {
-    ref.current?.children[index]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+    const strip = ref.current
+    const thumb = strip?.children[index] as HTMLElement | undefined
+    if (strip && thumb) strip.scrollTo({ left: thumb.offsetLeft - (strip.clientWidth - thumb.offsetWidth) / 2, behavior: 'smooth' })
   }, [index])
   return (
     <div

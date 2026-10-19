@@ -12,7 +12,21 @@ import {
   type MotionValue,
   type Transition,
 } from 'motion/react'
-import { band, clamp, fit, intersect, lerpVisual, objectPosition, panRange, scaleRect, toStyle, zoomAt, type Rect, type Visual } from './math.ts'
+import {
+  band,
+  clamp,
+  fit,
+  intersect,
+  lerpVisual,
+  objectPosition,
+  panRange,
+  rubber,
+  scaleRect,
+  toStyle,
+  zoomAt,
+  type Rect,
+  type Visual,
+} from './math.ts'
 
 export interface LightboxItem {
   src: string
@@ -29,7 +43,7 @@ export type LightboxPhase = 'closed' | 'opening' | 'open' | 'closing'
 export interface LightboxRootProps<T extends LightboxItem = LightboxItem> {
   items: T[]
   children?: React.ReactNode
-  /** Max zoom relative to the fitted size. `1` disables zoom. @default 4 */
+  /** Max zoom relative to the fitted size. `1` disables zoom (and makes taps fire instantly). @default 4 */
   maxZoom?: number
   /** Plain mouse wheel zooms instead of panning. Ctrl/⌘ + wheel and trackpad pinch always zoom. @default false */
   wheelToZoom?: boolean
@@ -37,10 +51,22 @@ export interface LightboxRootProps<T extends LightboxItem = LightboxItem> {
   closeOnBackdropClick?: boolean
   /** Keep the current item's trigger in view behind the viewer while navigating. @default 'smooth' */
   scrollTriggerIntoView?: 'smooth' | 'instant' | false
-  /** Motion transition for the open/close morph. */
+  /** Motion transition for both the open and close morph. Defaults to a light spring in, a critically damped one out. */
   transition?: Transition
   onOpenChange?: (open: boolean) => void
   onIndexChange?: (index: number) => void
+}
+
+export interface LightboxTapEvent {
+  index: number
+  /** The tap landed on the image, or on the empty area around it. */
+  target: 'image' | 'backdrop'
+  /** Tap position across the image box: 0 → 1 (outside that range for backdrop taps). */
+  x: number
+  y: number
+  pointerType: string
+  /** Skip the default action (backdrop → close, touch on the image → toggle `data-ui-hidden`). */
+  preventDefault(): void
 }
 
 type XY = { x: number; y: number }
@@ -54,8 +80,11 @@ interface ImageController {
 
 interface ViewportController {
   goTo(index: number, behavior: ScrollBehavior): void
+  /** Stop any scroll in flight and pin the viewport to a slide. */
+  freeze(index: number): void
   dragStart(): void
-  dragMove(dx: number): void
+  /** Scrolls by a drag; returns how far past either end the drag wants to go. */
+  dragMove(dx: number): number
   dragEnd(vx: number): void
 }
 
@@ -69,7 +98,8 @@ interface Ctx {
   reducedMotion: boolean
   presence: MotionValue<number>
   options: Required<Pick<LightboxRootProps, 'maxZoom' | 'wheelToZoom' | 'closeOnBackdropClick' | 'scrollTriggerIntoView'>> & {
-    transition: Transition
+    open: Transition
+    close: Transition
   }
   triggers: Map<number, Set<HTMLElement>>
   images: Map<number, ImageController>
@@ -87,19 +117,24 @@ interface Ctx {
   toggleUi(): void
 }
 
-const LightboxContext = React.createContext<Ctx | null>(null)
-const SlideContext = React.createContext<number | null>(null)
-
-function useSlideIndex() {
-  const index = React.useContext(SlideContext)
-  if (index === null) throw new Error('<Lightbox.Image> must be inside <Lightbox.Slide>.')
-  return index
+interface SlideCtx {
+  index: number
+  onTap?: (event: LightboxTapEvent) => void
 }
+
+const LightboxContext = React.createContext<Ctx | null>(null)
+const SlideContext = React.createContext<SlideCtx | null>(null)
 
 function useCtx() {
   const ctx = React.useContext(LightboxContext)
   if (!ctx) throw new Error('Lightbox parts must be used inside <Lightbox.Root>.')
   return ctx
+}
+
+function useSlide() {
+  const slide = React.useContext(SlideContext)
+  if (!slide) throw new Error('<Lightbox.Image> must be inside <Lightbox.Slide>.')
+  return slide
 }
 
 /** Stable function identity that always calls the latest closure. */
@@ -111,15 +146,54 @@ function useEvent<A extends unknown[], R>(fn: (...args: A) => R) {
   return React.useCallback((...args: A) => ref.current(...args), [])
 }
 
-const SETTLE: Transition = { type: 'spring', stiffness: 380, damping: 38 }
-const MORPH: Transition = { type: 'spring', visualDuration: 0.38, bounce: 0.16 }
+const SETTLE: Transition = { type: 'spring', stiffness: 420, damping: 42 }
+// ζ≈0.87: a hint of overshoot (~0.4%) so opening feels alive.
+const OPEN: Transition = { type: 'spring', stiffness: 380, damping: 34 }
+// ζ≈1: no undershoot into small targets (avatars), within a pixel of home in ~0.35s.
+const CLOSE: Transition = { type: 'spring', stiffness: 520, damping: 46 }
 const REDUCED: Transition = { duration: 0.16, ease: 'easeOut' }
+const SNAP = 'x mandatory'
+const OVERLAY: React.CSSProperties = { position: 'fixed', inset: 0 }
 
-const inViewport = (r: DOMRect) =>
-  r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth
-const fullyInViewport = (r: DOMRect) => r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth
+/**
+ * Lock page scroll without reserving a scrollbar gutter: browsers paint a reserved gutter on top of fixed
+ * content, which would leave a strip down the side of a full-screen viewer. Body padding absorbs the
+ * scrollbar's width instead, so the page (and every thumbnail on it) stays put. Programmatic scrolling —
+ * which the scroll sync relies on — still works under `overflow: hidden`.
+ */
+function lockScroll() {
+  const html = document.documentElement
+  const body = document.body
+  const gap = innerWidth - html.clientWidth
+  const prev = [html.style.overflow, html.style.overscrollBehavior, body.style.paddingRight] as const
+  if (gap > 0) body.style.paddingRight = `${parseFloat(getComputedStyle(body).paddingRight) + gap}px`
+  html.style.overflow = 'hidden'
+  // A sideways trackpad swipe over the chrome would otherwise chain to the page and trigger back/forward.
+  html.style.overscrollBehavior = 'none'
+  return () => {
+    html.style.overflow = prev[0]
+    html.style.overscrollBehavior = prev[1]
+    body.style.paddingRight = prev[2]
+  }
+}
+
 const toRect = (r: DOMRect): Rect => ({ x: r.left, y: r.top, w: r.width, h: r.height })
+const area = (r: Rect) => r.w * r.h
 const thumbImg = (el: HTMLElement) => (el instanceof HTMLImageElement ? el : el.querySelector('img'))
+
+/** The part of `el` actually on screen: clipped by every overflow ancestor and the viewport. */
+function visibleRect(el: Element): Rect {
+  let r = toRect(el.getBoundingClientRect())
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const cs = getComputedStyle(p)
+    if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') r = intersect(r, toRect(p.getBoundingClientRect()))
+  }
+  return intersect(r, { x: 0, y: 0, w: innerWidth, h: innerHeight })
+}
+const visibleFraction = (el: Element) => {
+  const full = area(toRect(el.getBoundingClientRect()))
+  return full ? area(visibleRect(el)) / full : 0
+}
 
 function radiusOf(el: Element, r: DOMRect) {
   const v = getComputedStyle(el).borderTopLeftRadius
@@ -128,18 +202,23 @@ function radiusOf(el: Element, r: DOMRect) {
 
 /** Where the full image would sit if drawn into the trigger, cropped like the thumbnail. */
 function thumbVisual(trigger: HTMLElement, aspect: number): Visual | null {
+  const visible = visibleRect(trigger)
+  if (visible.w < 1 || visible.h < 1) return null
   const r = trigger.getBoundingClientRect()
-  if (!inViewport(r)) return null
   const img = thumbImg(trigger)
   const ir = img ? img.getBoundingClientRect() : r
   const cs = img ? getComputedStyle(img) : null
   const contain = cs?.objectFit === 'contain' || cs?.objectFit === 'scale-down'
   const [px, py] = cs ? objectPosition(cs.objectPosition) : [0.5, 0.5]
   const drawn = fit(aspect, toRect(ir), contain ? 'contain' : 'cover', px, py)
-  const clip = intersect(contain ? drawn : toRect(ir), toRect(r))
+  const clip = intersect(contain ? drawn : toRect(ir), visible)
   const radius = Math.min(Math.max(radiusOf(trigger, r), img ? radiusOf(img, ir) : 0), clip.w / 2, clip.h / 2)
   return { img: drawn, clip, radius, opacity: 1 }
 }
+
+const shift = (r: Rect, dx: number, dy: number): Rect => ({ ...r, x: r.x + dx, y: r.y + dy })
+const shiftVisual = (v: Visual, dx: number, dy: number): Visual =>
+  dx || dy ? { ...v, img: shift(v.img, dx, dy), clip: shift(v.clip, dx, dy) } : v
 
 const fadeVisual = (v: Visual): Visual => ({ ...v, img: scaleRect(v.img, 0.92), clip: scaleRect(v.clip, 0.92), opacity: 0 })
 
@@ -151,7 +230,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
     wheelToZoom = false,
     closeOnBackdropClick = true,
     scrollTriggerIntoView = 'smooth',
-    transition = MORPH,
+    transition,
     onOpenChange,
     onIndexChange,
   } = props
@@ -170,18 +249,23 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   const live = React.useRef({ index, phase })
   live.current = { index, phase }
 
+  // Hide the thumbnail image (not the whole trigger) so rings, borders and backgrounds stay put.
   const hideTrigger = useEvent((i: number | null) => {
     hidden.current.forEach((el) => (el.style.visibility = ''))
-    hidden.current = i === null ? [] : [...(triggers.get(i) ?? [])]
+    hidden.current = i === null ? [] : [...(triggers.get(i) ?? [])].map((t) => thumbImg(t) ?? t)
     hidden.current.forEach((el) => (el.style.visibility = 'hidden'))
   })
 
   const pickTrigger = useEvent((i: number, scroll: ScrollBehavior | false) => {
     const list = [...(triggers.get(i) ?? [])].filter((el) => el.isConnected)
-    const visible = list.find((el) => inViewport(el.getBoundingClientRect()))
-    if (visible) return visible
-    const el = list.find((el) => el === openTrigger.current) ?? list[0] ?? null
-    if (el && scroll) el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: scroll })
+    let best: HTMLElement | null = null
+    let seen = 0
+    for (const el of list) {
+      const v = visibleFraction(el)
+      if (v > seen + 0.01) [best, seen] = [el, v]
+    }
+    const el = best ?? list.find((el) => el === openTrigger.current) ?? list[0] ?? null
+    if (el && scroll && seen < 0.99) el.scrollIntoView({ block: seen > 0 ? 'nearest' : 'center', inline: 'nearest', behavior: scroll })
     return el
   })
 
@@ -201,10 +285,15 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
     live.current = { index, phase: 'closing' }
     setPhase('closing')
     setDragging(false)
+    // A swipe or arrow-key glide may still be moving the slides; the morph needs them still.
+    viewport.current?.freeze(index)
     const trigger = pickTrigger(index, scrollTriggerIntoView === false ? false : 'instant')
+    // An instant scroll also cuts short a smooth page-sync scroll still in flight, so the target holds still.
+    if (trigger && scrollTriggerIntoView) trigger.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
     const image = images.get(index)
-    if (image) await image.animateOut(trigger, velocity)
-    else await animate(presence, 0, reducedMotion ? REDUCED : SETTLE)
+    const animation = image ? image.animateOut(trigger, velocity) : animate(presence, 0, reducedMotion ? REDUCED : CLOSE)
+    // An invisible overlay that never unmounts would block the whole page; never wait forever.
+    await Promise.race([animation, new Promise((r) => setTimeout(r, 1500))])
     live.current = { index, phase: 'closed' }
     setPhase('closed')
     setZoomed(false)
@@ -218,7 +307,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   })
 
   const onScrollIndex = useEvent((i: number) => {
-    if (i === live.current.index) return
+    if (i === live.current.index || live.current.phase === 'closing' || live.current.phase === 'closed') return
     live.current = { ...live.current, index: i }
     setIndex(i)
     setZoomed(false)
@@ -232,19 +321,24 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
 
   const toggleUi = useEvent(() => setUiHidden((v) => !v))
 
-  // Keep the page behind in sync: hide the current item's thumbnail and scroll it into view.
+  // The page behind keeps up: hide the current thumbnail, and once swiping settles, scroll it into view.
   React.useEffect(() => {
     if (phase !== 'open') return
     hideTrigger(index)
-    const el = pickTrigger(index, false)
-    if (el && scrollTriggerIntoView && !fullyInViewport(el.getBoundingClientRect())) {
-      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollTriggerIntoView })
-    }
+    if (!scrollTriggerIntoView) return
+    const id = setTimeout(() => {
+      const el = pickTrigger(index, false)
+      if (el && visibleFraction(el) < 0.99) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollTriggerIntoView })
+    }, 150)
+    return () => clearTimeout(id)
   }, [index, phase, scrollTriggerIntoView, hideTrigger, pickTrigger])
 
   React.useLayoutEffect(() => {
     if (phase === 'closed') hideTrigger(null)
   }, [phase, hideTrigger])
+
+  const isOpen = phase !== 'closed'
+  React.useLayoutEffect(() => (isOpen ? lockScroll() : undefined), [isOpen])
 
   const indexChange = useEvent(() => onIndexChange?.(index))
   React.useEffect(() => {
@@ -260,7 +354,14 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
     uiHidden,
     reducedMotion,
     presence,
-    options: { maxZoom, wheelToZoom, closeOnBackdropClick, scrollTriggerIntoView, transition: reducedMotion ? REDUCED : transition },
+    options: {
+      maxZoom,
+      wheelToZoom,
+      closeOnBackdropClick,
+      scrollTriggerIntoView,
+      open: reducedMotion ? REDUCED : (transition ?? OPEN),
+      close: reducedMotion ? REDUCED : (transition ?? CLOSE),
+    },
     triggers,
     images,
     viewport,
@@ -278,7 +379,8 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   }
 
   return (
-    <Dialog.Root open={phase !== 'closed'} onOpenChange={(open) => !open && close()}>
+    // Base UI traps focus, handles Esc and returns focus; we lock scroll ourselves (see lockScroll).
+    <Dialog.Root open={phase !== 'closed'} modal="trap-focus" onOpenChange={(open) => !open && close()}>
       <LightboxContext.Provider value={ctx}>{children}</LightboxContext.Provider>
     </Dialog.Root>
   )
@@ -329,7 +431,7 @@ function Backdrop(props: Dialog.Backdrop.Props) {
   const ctx = useCtx()
   const ref = React.useRef<HTMLDivElement>(null)
   usePresence(ref, ctx.presence, true)
-  return <Dialog.Backdrop ref={ref} {...mergeProps<'div'>({ style: { position: 'fixed', inset: 0 } }, props as never)} />
+  return <Dialog.Backdrop ref={ref} {...mergeProps<'div'>({ style: OVERLAY }, props as never)} />
 }
 
 const isEditable = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
@@ -343,8 +445,17 @@ function Popup(props: Dialog.Popup.Props) {
   React.useLayoutEffect(() => {
     if (ctx.phase !== 'opening' || ctx.images.has(ctx.index)) return
     ctx.presence.set(0)
-    animate(ctx.presence, 1, ctx.options.transition).then(ctx.onOpened)
+    animate(ctx.presence, 1, ctx.options.open).then(ctx.onOpened)
   }, [ctx.phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A slide that scrolls away goes inert; don't let focus fall out of the dialog (or scroll the viewport).
+  React.useEffect(() => {
+    const el = ref.current
+    const active = document.activeElement
+    if (el && (!active || active === document.body || active.closest('[data-lightbox-slide]:not([data-current])'))) {
+      el.focus({ preventScroll: true })
+    }
+  }, [ctx.index])
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.defaultPrevented || isEditable(e.target)) return
@@ -362,12 +473,13 @@ function Popup(props: Dialog.Popup.Props) {
     <Dialog.Popup
       ref={ref}
       aria-label="Image viewer"
+      initialFocus={ref}
       finalFocus={() => ctx.pickTrigger(ctx.index, false) ?? true}
       data-phase={ctx.phase}
       data-zoomed={ctx.zoomed ? '' : undefined}
       data-dragging={ctx.dragging ? '' : undefined}
       data-ui-hidden={ctx.uiHidden ? '' : undefined}
-      {...mergeProps<'div'>({ style: { position: 'fixed', inset: 0 }, onKeyDown }, props as never)}
+      {...mergeProps<'div'>({ style: OVERLAY, onKeyDown }, props as never)}
     />
   )
 }
@@ -375,32 +487,54 @@ function Popup(props: Dialog.Popup.Props) {
 function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'>) {
   const ctx = useCtx()
   const ref = React.useRef<HTMLDivElement>(null)
-  const drag = React.useRef(0)
   const count = ctx.items.length
   const { viewport, onScrollIndex } = ctx
 
   React.useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
+    let dragFrom = 0
+    let dragging = false
     const stride = () => {
       const [a, b] = el.children as unknown as HTMLElement[]
       return a && b ? b.offsetLeft - a.offsetLeft : el.clientWidth
     }
-    const restoreSnap = () => (el.style.scrollSnapType = '')
+    const restore = () => {
+      if (dragging) return
+      el.style.scrollSnapType = SNAP
+      el.style.scrollBehavior = ''
+    }
     viewport.current = {
       goTo: (i, behavior) => el.scrollTo({ left: i * stride(), behavior }),
-      dragStart() {
-        drag.current = el.scrollLeft
-        el.style.scrollSnapType = 'none'
+      freeze(i) {
+        dragging = false
+        el.style.scrollSnapType = SNAP
+        el.style.scrollBehavior = ''
+        el.scrollTo({ left: i * stride(), behavior: 'instant' })
       },
-      dragMove: (dx) => (el.scrollLeft = drag.current - dx),
+      dragStart() {
+        dragging = true
+        dragFrom = el.scrollLeft
+        // Mandatory snapping would fight every programmatic scroll; CSS smooth scrolling would lag behind the pointer.
+        el.style.scrollSnapType = 'none'
+        el.style.scrollBehavior = 'auto'
+      },
+      dragMove(dx) {
+        const want = dragFrom - dx
+        const left = clamp(want, 0, el.scrollWidth - el.clientWidth)
+        el.scrollLeft = left
+        return want - left
+      },
       dragEnd(vx) {
+        dragging = false
         const s = stride()
-        const from = Math.round(drag.current / s)
-        const target = clamp(Math.round((el.scrollLeft - vx * 0.25) / s), Math.max(0, from - 1), Math.min(count - 1, from + 1))
+        const from = Math.round(dragFrom / s)
+        const target = clamp(Math.round((el.scrollLeft - vx * 0.3) / s), Math.max(0, from - 1), Math.min(count - 1, from + 1))
+        if (Math.abs(el.scrollLeft - target * s) < 1) return restore()
+        el.style.scrollBehavior = ''
         el.scrollTo({ left: target * s, behavior: 'smooth' })
-        el.addEventListener('scrollend', restoreSnap, { once: true })
-        setTimeout(restoreSnap, 700)
+        if ('onscrollend' in window) el.addEventListener('scrollend', restore, { once: true })
+        else setTimeout(restore, 450)
       },
     }
     const onScroll = () => onScrollIndex(clamp(Math.round(el.scrollLeft / stride()), 0, count - 1))
@@ -425,7 +559,7 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
           height: '100%',
           overflowX: ctx.zoomed ? 'hidden' : 'auto',
           overflowY: 'hidden',
-          scrollSnapType: 'x mandatory',
+          scrollSnapType: SNAP,
           scrollbarWidth: 'none',
           overscrollBehavior: 'contain',
         },
@@ -446,13 +580,16 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
 
 export interface LightboxSlideProps extends useRender.ComponentProps<'div'> {
   index: number
+  /** Taps on this slide (after the double-tap window when zoom is on). Call `event.preventDefault()` to skip the default. */
+  onTap?: (event: LightboxTapEvent) => void
 }
 
-function Slide({ index, render, children, ...props }: LightboxSlideProps) {
+function Slide({ index, onTap, render, children, ...props }: LightboxSlideProps) {
   const ctx = useCtx()
   const current = index === ctx.index
   // ponytail: renders index±2 only; a 10k-item gallery would want real virtualisation of the slides too.
   const near = Math.abs(index - ctx.index) <= 2
+  const slide = React.useMemo(() => ({ index, onTap }), [index, onTap])
   const element = useRender({
     defaultTagName: 'div',
     render,
@@ -477,7 +614,7 @@ function Slide({ index, render, children, ...props }: LightboxSlideProps) {
       { children: near ? children : null },
     ),
   })
-  return <SlideContext.Provider value={index}>{element}</SlideContext.Provider>
+  return <SlideContext.Provider value={slide}>{element}</SlideContext.Provider>
 }
 
 export interface LightboxImageProps extends Omit<useRender.ComponentProps<'img'>, 'src'> {
@@ -486,7 +623,7 @@ export interface LightboxImageProps extends Omit<useRender.ComponentProps<'img'>
 }
 
 type Gesture =
-  | { kind: 'pending' | 'pan' | 'dismiss' | 'swipe'; start: XY; x0: number; y0: number; mouse: boolean }
+  | { kind: 'pending' | 'pan' | 'dismiss' | 'swipe'; start: XY; x0: number; y0: number; type: string }
   | { kind: 'pinch'; d0: number; m0: XY; m: XY; s0: number; x0: number; y0: number; wasZoomed: boolean }
 
 const dist = (a: XY, b: XY) => Math.hypot(a.x - b.x, a.y - b.y)
@@ -495,7 +632,8 @@ const center = (r: Rect) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 })
 
 function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps) {
   const ctx = useCtx()
-  const index = useSlideIndex()
+  const slide = useSlide()
+  const { index } = slide
   const item = ctx.items[index]
   const imgRef = React.useRef<HTMLImageElement>(null)
   const wrapRef = React.useRef<HTMLDivElement>(null)
@@ -511,22 +649,22 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
   const [placeholder, setPlaceholder] = React.useState<string | null>(null)
   const [loaded, setLoaded] = React.useState(false)
   const anims = React.useRef<AnimationPlaybackControls[]>([])
+  const pending = React.useRef(new Set<() => void>())
   const morph = React.useRef<Visual | null>(null)
   const started = React.useRef(false)
 
   const F = box && aspect ? fit(aspect, box, 'contain') : null
-  const live = React.useRef({ F, ctx })
-  live.current = { F, ctx }
+  const live = React.useRef({ F, ctx, slide })
+  live.current = { F, ctx, slide }
 
   const stop = () => {
     anims.current.forEach((a) => a.stop())
     anims.current = []
   }
 
-  // Measure the slide's content box; learn the aspect ratio from the thumbnail if we have to.
+  // Measure the slide's content box; borrow the aspect ratio from the thumbnail if we have to.
   React.useLayoutEffect(() => {
     const el = slideEl()
-    if (!el) return
     const measure = () => {
       const cs = getComputedStyle(el)
       const [pl, pt, pr, pb] = [cs.paddingLeft, cs.paddingTop, cs.paddingRight, cs.paddingBottom].map(parseFloat)
@@ -537,9 +675,13 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     el.style.touchAction = 'pan-x'
-    const thumb = [...(ctx.triggers.get(index) ?? [])].map(thumbImg).find(Boolean)
+    const trigger = [...(ctx.triggers.get(index) ?? [])][0]
+    const thumb = trigger && thumbImg(trigger)
     if (thumb?.currentSrc) setPlaceholder(thumb.currentSrc)
-    if (!aspect && thumb?.naturalWidth) setAspect(thumb.naturalWidth / thumb.naturalHeight)
+    if (!aspect && trigger) {
+      const r = trigger.getBoundingClientRect()
+      setAspect(thumb?.naturalWidth ? thumb.naturalWidth / thumb.naturalHeight : r.height ? r.width / r.height : 1.5)
+    }
     if (imgRef.current?.complete && imgRef.current.naturalWidth) onLoad()
     return () => ro.disconnect()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -574,24 +716,32 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     const img = { x: b.x + x.get(), y: b.y + y.get(), w: b.w * s, h: b.h * s }
     return { img, clip: img, radius: radius(), opacity: opacity.get() }
   }
-  const run = (onUpdate: (p: number) => void, velocity = 0) =>
+  const run = (transition: Transition, onUpdate: (p: number) => void, velocity = 0) =>
     new Promise<void>((resolve) => {
-      anims.current.push(animate(0, 1, { ...live.current.ctx.options.transition, velocity, onUpdate, onComplete: resolve }))
+      const done = () => {
+        pending.current.delete(done)
+        resolve()
+      }
+      pending.current.add(done)
+      // 0→1 progress looks "granular" to Motion, which would then idle for ages within a pixel of the end.
+      anims.current.push(animate(0, 1, { restDelta: 0.002, restSpeed: 0.02, ...transition, velocity, onUpdate, onComplete: done }))
     })
 
   const controller: ImageController = {
     animateIn(trigger) {
       stop()
       const { ctx } = live.current
-      const b = base()
-      const to: Visual = { img: b, clip: b, radius: radius(), opacity: 1 }
+      const r = radius()
+      const rest = (b: Rect): Visual => ({ img: b, clip: b, radius: r, opacity: 1 })
       const thumb = !ctx.reducedMotion && trigger ? thumbVisual(trigger, aspect) : null
-      const from = thumb ?? fadeVisual(to)
-      apply(from, b)
+      const from = thumb ?? fadeVisual(rest(base()))
+      apply(from, base())
       ctx.presence.set(0)
       if (thumb) ctx.hideTrigger(index)
-      run((p) => {
-        apply(lerpVisual(from, to, p), b)
+      // Endpoints are re-read every frame, so anything still settling underneath can't knock the morph off target.
+      run(ctx.options.open, (p) => {
+        const b = base()
+        apply(lerpVisual(from, rest(b), p), b)
         ctx.presence.set(clamp(p, 0, 1))
       }).then(() => {
         morph.current = null
@@ -605,22 +755,32 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     async animateOut(trigger, velocity) {
       stop()
       const { ctx } = live.current
-      if (!live.current.F) return void (await animate(ctx.presence, 0, SETTLE))
-      const b = base()
-      const from = current(b)
+      if (!live.current.F) return void (await animate(ctx.presence, 0, ctx.options.close))
+      const from = current(base())
       const thumb = !ctx.reducedMotion && trigger ? thumbVisual(trigger, aspect) : null
       const to = thumb ?? fadeVisual(from)
       if (thumb) ctx.hideTrigger(index)
+      // Follow the thumbnail if the page is still moving (a smooth sync scroll, the user, a layout shift).
+      const t0 = trigger?.getBoundingClientRect()
+      const target = (): Visual => {
+        if (!thumb || !trigger || !t0) return to
+        const r = trigger.getBoundingClientRect()
+        return shiftVisual(to, r.left - t0.left, r.top - t0.top)
+      }
       // Carry the release velocity into the morph so a flick flows straight home.
       const c0 = center(from.img)
       const c1 = center(to.img)
       const d2 = (c1.x - c0.x) ** 2 + (c1.y - c0.y) ** 2
-      const pv = velocity && d2 > 1 ? clamp((velocity.x * (c1.x - c0.x) + velocity.y * (c1.y - c0.y)) / d2, 0, 10) : 0
+      const pv = velocity && d2 > 1 ? clamp((velocity.x * (c1.x - c0.x) + velocity.y * (c1.y - c0.y)) / d2, 0, 8) : 0
       const p0 = ctx.presence.get()
-      await run((p) => {
-        apply(lerpVisual(from, to, p), b)
-        ctx.presence.set(p0 * (1 - clamp(p, 0, 1)))
-      }, pv)
+      await run(
+        ctx.options.close,
+        (p) => {
+          apply(lerpVisual(from, target(), p), base())
+          ctx.presence.set(p0 * (1 - clamp(p, 0, 1)))
+        },
+        pv,
+      )
     },
     zoomBy: (f) => zoomTo(scale.get() * f, null),
     resetZoom: () => settle(1, 0, 0),
@@ -659,10 +819,10 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       animate(y, clamp(ty, b.minY, b.maxY), SETTLE),
     ]
   }
-  function zoomTo(target: number, focus: XY | null) {
-    const el = slideEl()
+  const zoomTo = (target: number, focus: XY | null) => {
     const f = live.current.F
-    if (!el || !f) return
+    if (!f) return
+    const el = slideEl()
     const p = focus ?? { x: el.clientWidth / 2, y: el.clientHeight / 2 }
     const s0 = scale.get()
     const s1 = clamp(target, 1, live.current.ctx.options.maxZoom)
@@ -680,8 +840,9 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     scale.set(s1)
   }
 
-  // Slides that scroll away reset their zoom.
+  // Slides that scroll away reset their zoom (never mid-morph: that would kill the open/close animation).
   React.useEffect(() => {
+    if (morph.current || ctx.phase !== 'open') return
     if (ctx.index !== index && (scale.get() !== 1 || x.get() || y.get())) settle(1, 0, 0)
   }, [ctx.index]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -712,22 +873,24 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
   // ---- gestures ----
   React.useEffect(() => {
     const el = slideEl()
-    if (!el) return
     const pointers = new Map<number, XY>()
     let g: Gesture | null = null
     let samples: (XY & { t: number })[] = []
     let lastTap: (XY & { t: number }) | null = null
     let tapTimer: ReturnType<typeof setTimeout> | undefined
     let safariScale: number | null = null
+    // Gesture coordinates are relative to where the slide was when the gesture began: the slide itself
+    // moves during a mouse swipe, and measuring against its live position would feed back into the drag.
+    let origin = el.getBoundingClientRect()
 
     const active = () => {
       const { ctx, F } = live.current
       return ctx.phase === 'open' && ctx.index === index && !!F && !morph.current
     }
-    const local = (e: { clientX: number; clientY: number }): XY => {
-      const r = el.getBoundingClientRect()
-      return { x: e.clientX - r.left - el.clientLeft, y: e.clientY - r.top - el.clientTop }
-    }
+    const local = (e: { clientX: number; clientY: number }, r = origin): XY => ({
+      x: e.clientX - r.left - el.clientLeft,
+      y: e.clientY - r.top - el.clientTop,
+    })
     const velocity = (now: number): XY => {
       const recent = samples.filter((s) => now - s.t < 100)
       if (recent.length < 2 || now - recent[recent.length - 1]!.t > 50) return { x: 0, y: 0 }
@@ -737,10 +900,16 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       return { x: (b.x - a.x) / dt, y: (b.y - a.y) / dt }
     }
     const restorePresence = () => anims.current.push(animate(live.current.ctx.presence, 1, SETTLE))
+    const reset = () => {
+      if (g?.kind === 'dismiss') live.current.ctx.setDragging(false)
+      g = null
+      pointers.clear()
+    }
 
     const onDown = (e: PointerEvent) => {
       if (!active() || (e.pointerType === 'mouse' && e.button !== 0)) return
       if ((e.target as Element).closest('button, a, input, textarea, select, [data-lightbox-ignore]')) return
+      if (!pointers.size) origin = el.getBoundingClientRect()
       const p = local(e)
       pointers.set(e.pointerId, p)
       try {
@@ -752,15 +921,15 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         const [a, b] = [...pointers.values()] as [XY, XY]
         const s0 = scale.get()
         g = { kind: 'pinch', d0: dist(a, b) || 1, m0: mid(a, b), m: mid(a, b), s0, x0: x.get(), y0: y.get(), wasZoomed: s0 > 1.01 }
-      } else if (pointers.size === 1) g = { kind: 'pending', start: p, x0: x.get(), y0: y.get(), mouse: e.pointerType === 'mouse' }
+      } else if (pointers.size === 1) g = { kind: 'pending', start: p, x0: x.get(), y0: y.get(), type: e.pointerType }
     }
 
     const onMove = (e: PointerEvent) => {
       if (!pointers.has(e.pointerId) || !g) return
+      const { ctx, F } = live.current
+      if (ctx.phase !== 'open' || !F) return reset()
       const p = local(e)
       pointers.set(e.pointerId, p)
-      const { ctx, F } = live.current
-      if (!F) return
       if (g.kind === 'pinch') {
         const [a, b] = [...pointers.values()] as [XY, XY]
         const max = ctx.options.maxZoom
@@ -775,22 +944,21 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       }
       samples.push({ ...p, t: e.timeStamp })
       if (samples.length > 20) samples.shift()
-      const dx = p.x - g.start.x
-      const dy = p.y - g.start.y
       if (g.kind === 'pending') {
-        if (Math.hypot(dx, dy) < 6) return
+        if (dist(p, g.start) < 6) return
+        const horizontal = Math.abs(p.x - g.start.x) > Math.abs(p.y - g.start.y)
         if (scale.get() > 1.01) g.kind = 'pan'
-        else if (Math.abs(dy) > Math.abs(dx)) {
+        else if (!horizontal) {
           g.kind = 'dismiss'
           ctx.setDragging(true)
-        } else if (g.mouse && ctx.items.length > 1) {
+        } else if (g.type === 'mouse' && ctx.items.length > 1) {
           g.kind = 'swipe'
+          g.start = p // past the slop, start following without a jump
           ctx.viewport.current?.dragStart()
-        } else {
-          g = null // touch: horizontal belongs to the native scroller
-          return
-        }
+        } else return void (g = null) // touch: horizontal belongs to the native scroller
       }
+      const dx = p.x - g.start.x
+      const dy = p.y - g.start.y
       if (g.kind === 'pan') {
         const b = bounds(scale.get())
         x.set(band(g.x0 + dx, b.minX, b.maxX, el.clientWidth))
@@ -803,26 +971,45 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         y.set(g.start.y + dy - (g.start.y - F.y) * k - F.y)
         scale.set(k)
         ctx.presence.set(1 - clamp(Math.abs(dy) / (H * 0.35), 0, 1))
-      } else if (g.kind === 'swipe') ctx.viewport.current?.dragMove(dx)
+      } else if (g.kind === 'swipe') {
+        // past the first / last slide the image rubber-bands instead of hitting a wall
+        const over = ctx.viewport.current?.dragMove(dx) ?? 0
+        x.set(-rubber(over, el.clientWidth))
+      }
     }
 
-    const onTap = (p: XY, mouse: boolean) => {
-      const { ctx, F } = live.current
+    const onTap = (p: XY, pointerType: string) => {
+      const { ctx, F, slide } = live.current
+      if (!F) return
       const now = performance.now()
+      const canZoom = ctx.options.maxZoom > 1
       clearTimeout(tapTimer)
-      if (lastTap && now - lastTap.t < 300 && dist(p, lastTap) < 30) {
+      if (canZoom && lastTap && now - lastTap.t < 300 && dist(p, lastTap) < 30) {
         lastTap = null
         if (scale.get() > 1.01) return settle(1, 0, 0)
-        const cover = Math.max(el.clientWidth / F!.w, el.clientHeight / F!.h)
-        return zoomTo(Math.max(2, cover), p)
+        return zoomTo(Math.max(2, el.clientWidth / F.w, el.clientHeight / F.h), p)
       }
       lastTap = { ...p, t: now }
       const s = scale.get()
-      const onImage = p.x >= F!.x + x.get() && p.x <= F!.x + x.get() + F!.w * s && p.y >= F!.y + y.get() && p.y <= F!.y + y.get() + F!.h * s
-      if (!onImage && ctx.options.closeOnBackdropClick) {
-        if (mouse) ctx.close()
-        else tapTimer = setTimeout(() => ctx.close(), 300)
-      } else if (onImage && !mouse) tapTimer = setTimeout(ctx.toggleUi, 300)
+      const box = { x: F.x + x.get(), y: F.y + y.get(), w: F.w * s, h: F.h * s }
+      const onImage = p.x >= box.x && p.x <= box.x + box.w && p.y >= box.y && p.y <= box.y + box.h
+      const fire = () => {
+        let prevented = false
+        slide.onTap?.({
+          index,
+          target: onImage ? 'image' : 'backdrop',
+          x: (p.x - box.x) / box.w,
+          y: (p.y - box.y) / box.h,
+          pointerType,
+          preventDefault: () => (prevented = true),
+        })
+        if (prevented || live.current.ctx.phase !== 'open') return
+        if (!onImage) ctx.options.closeOnBackdropClick && ctx.close()
+        else if (pointerType !== 'mouse') ctx.toggleUi()
+      }
+      // Wait out the double-tap window only when a double tap could mean something.
+      if (!canZoom || (pointerType === 'mouse' && !onImage)) fire()
+      else tapTimer = setTimeout(fire, 260)
     }
 
     const onUp = (e: PointerEvent) => {
@@ -830,6 +1017,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       pointers.delete(e.pointerId)
       const { ctx, F } = live.current
       if (!g || !F) return
+      if (ctx.phase !== 'open') return reset()
       const cancelled = e.type === 'pointercancel'
       if (g.kind === 'pinch') {
         if (pointers.size >= 2) return
@@ -844,12 +1032,13 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         return
       }
       if (pointers.size) return
+      const p = local(e)
       const v = cancelled ? { x: 0, y: 0 } : velocity(e.timeStamp)
-      const kind = g.kind
-      const start = g.start
+      const { kind, start } = g
       g = null
-      if (kind === 'pending' && !cancelled) onTap(local(e), e.pointerType === 'mouse')
-      else if (kind === 'pan') {
+      if (kind === 'pending') {
+        if (!cancelled) onTap(p, e.pointerType)
+      } else if (kind === 'pan') {
         const b = bounds(scale.get())
         const inertia = { type: 'inertia', power: 0.5, timeConstant: 280, bounceStiffness: 360, bounceDamping: 36 } as const
         anims.current = [
@@ -858,17 +1047,22 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         ]
       } else if (kind === 'dismiss') {
         ctx.setDragging(false)
-        const dy = local(e).y - start.y
+        const dy = p.y - start.y
         const projected = dy + v.y * 0.2
         if (!cancelled && Math.abs(projected) > el.clientHeight * 0.15 && Math.sign(projected) === Math.sign(dy)) ctx.close(v)
         else {
           settle(1, 0, 0)
           restorePresence()
         }
-      } else if (kind === 'swipe') ctx.viewport.current?.dragEnd(v.x)
+      } else if (kind === 'swipe') {
+        ctx.viewport.current?.dragEnd(cancelled ? 0 : v.x)
+        if (x.get()) anims.current.push(animate(x, 0, SETTLE))
+      }
     }
 
     const onWheel = (e: WheelEvent) => {
+      // Never let a pinch reach the browser's page zoom while the viewer is up.
+      if (e.ctrlKey) e.preventDefault()
       if (!active()) return
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientHeight : 1
       const dx = e.deltaX * unit
@@ -877,7 +1071,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       const { options } = live.current.ctx
       if (e.ctrlKey || e.metaKey || (options.wheelToZoom && Math.abs(dy) > Math.abs(dx))) {
         e.preventDefault()
-        if (safariScale === null) zoomNow(s * Math.exp(-clamp(dy, -50, 50) * (e.ctrlKey ? 0.01 : 0.002)), local(e))
+        if (safariScale === null) zoomNow(s * Math.exp(-clamp(dy, -50, 50) * (e.ctrlKey ? 0.01 : 0.002)), local(e, el.getBoundingClientRect()))
       } else if (s > 1.01) {
         e.preventDefault()
         stop()
@@ -896,7 +1090,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     const onGestureChange = (e: Event) => {
       e.preventDefault()
       const ge = e as GestureEvt
-      if (safariScale !== null && active()) zoomNow(safariScale * ge.scale, local(ge))
+      if (safariScale !== null && active()) zoomNow(safariScale * ge.scale, local(ge, el.getBoundingClientRect()))
     }
     const onGestureEnd = (e: Event) => {
       e.preventDefault()
@@ -930,7 +1124,14 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  React.useEffect(() => stop, [])
+  // Unmounting mid-animation must still let the root finish opening/closing.
+  React.useEffect(
+    () => () => {
+      stop()
+      pending.current.forEach((done) => done())
+    },
+    [],
+  )
 
   const fill: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }
   const img = useRender({

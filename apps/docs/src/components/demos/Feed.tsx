@@ -23,11 +23,11 @@ function Media({ photos }: { photos: Photo[] }) {
         <Lightbox.Trigger
           key={photo.src}
           index={i}
-          className={cn('relative block overflow-hidden bg-neutral-100 outline-none focus-visible:opacity-80 dark:bg-neutral-900', n === 3 && i === 0 && 'row-span-2')}
+          className={cn('group relative block overflow-hidden bg-neutral-100 outline-none focus-visible:opacity-80 dark:bg-neutral-900', n === 1 && 'rounded-2xl', n === 3 && i === 0 && 'row-span-2')}
         >
           <img src={photo.thumb} alt={photo.alt} className={cn('size-full object-cover', n === 1 && 'max-h-[30rem]')} />
           {i === 3 && n > 4 && (
-            <span className="absolute inset-0 grid place-items-center bg-black/45 text-2xl font-semibold text-white">+{n - 4}</span>
+            <span className="absolute inset-0 grid place-items-center bg-black/45 text-2xl font-semibold text-white group-data-active:opacity-0">+{n - 4}</span>
           )}
         </Lightbox.Trigger>
       ))}

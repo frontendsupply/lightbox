@@ -8,7 +8,7 @@ export default function Basic() {
     <Lightbox.Root items={photos}>
       <div className="grid grid-cols-3 gap-2">
         {photos.map((photo, i) => (
-          <Lightbox.Trigger key={photo.src} index={i} className="overflow-hidden rounded-lg">
+          <Lightbox.Trigger key={photo.src} index={i} className="overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-900">
             <img src={photo.thumb} alt={photo.alt} className="aspect-square size-full object-cover" />
           </Lightbox.Trigger>
         ))}

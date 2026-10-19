@@ -25,8 +25,10 @@ Holds state. Renders no element.
 
 ## Trigger
 
-A `<button>` that opens the viewer at `index`. Its first `<img>` is the morph source; its own box and radius are the clip.
-Several triggers may share an index (e.g. a hero grid and an all-photos grid); the visible one wins.
+A `<button>` that opens the viewer at `index`. Its first `<img>` is the morph source; its own box, radius and any
+clipping ancestors (scrollers, `overflow: hidden` cards) define the visible crop. While its item is open that `<img>` is
+hidden, so the slot reads as "lifted out"; style `[data-active]` for anything else in the trigger (e.g. a "+3" overlay).
+Several triggers may share an index (e.g. a hero grid and an all-photos grid); the most visible one wins.
 
 | Prop | Type | |
 | --- | --- | --- |
@@ -35,9 +37,11 @@ Several triggers may share an index (e.g. a hero grid and an all-photos grid); t
 
 ## Portal, Backdrop, Popup
 
-[Base UI Dialog](https://base-ui.com/react/components/dialog) parts. `Popup` traps focus, locks page scroll, closes on
-`Esc`, returns focus to the current item's trigger and handles the keyboard shortcuts. `Backdrop` and `Popup` get
-`--lightbox-presence`; `Backdrop`'s opacity follows it.
+[Base UI Dialog](https://base-ui.com/react/components/dialog) parts. `Popup` traps focus, closes on `Esc`, returns
+focus to the current item's trigger and handles the keyboard shortcuts (your own `onKeyDown` runs first; call
+`preventDefault()` to replace a shortcut). Page scroll is locked without reserving a scrollbar gutter, so the overlay
+is truly full-bleed and nothing behind it shifts. `Backdrop` and `Popup` get `--lightbox-presence`; `Backdrop`'s
+opacity follows it.
 
 ## Viewport
 
@@ -48,13 +52,27 @@ The horizontal scroll-snap scroller. With no children it renders `<Slide><Image 
 | Prop | Type | |
 | --- | --- | --- |
 | `index` | `number` | Item shown in this slide |
+| `onTap` | `(event: LightboxTapEvent) => void` | Taps on the slide, after the double-tap window when zoom is on (instantly when `maxZoom` is 1) |
 
-Only slides within two of the current index render their children. Non-current slides are `inert`.
+```ts
+interface LightboxTapEvent {
+  index: number
+  target: 'image' | 'backdrop'
+  x: number // 0 → 1 across the image box
+  y: number
+  pointerType: string
+  preventDefault(): void // skip the default: backdrop → close, touch on image → toggle data-ui-hidden
+}
+```
+
+Only slides within two of the current index render their children. Non-current slides are `inert`. Slides are the
+scroll-snap targets, so don't transform them; animate a child instead (see [Styling](/docs/styling)).
 
 ## Image
 
-The morph and zoom target. Defaults `src`, `alt`, `srcSet` and `sizes` from the slide's item; any `<img>` prop works.
-While the full image loads, the trigger's thumbnail is shown in its place.
+The morph and zoom target. Defaults `src`, `alt`, `srcSet` and `sizes` from the slide's item; any `<img>` prop works,
+so a slide can swap what it shows (the [Stories](/docs/examples/stories) frames do exactly that). While the full image
+loads, the trigger's thumbnail is shown in its place.
 
 ## Close, Prev, Next, Title, Description
 

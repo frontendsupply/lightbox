@@ -15,11 +15,11 @@ export default function Hero() {
           <Lightbox.Trigger
             key={photo.src}
             index={i}
-            className="relative mb-2 block w-full break-inside-avoid overflow-hidden rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
+            className="group relative mb-2 block w-full break-inside-avoid overflow-hidden rounded-xl bg-neutral-100 outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:bg-neutral-900"
           >
             <img src={photo.thumb} alt={photo.alt} width={photo.width} height={photo.height} className="h-auto w-full" />
             {i === shown - 1 && (
-              <span className="absolute inset-0 grid place-items-center bg-black/45 text-3xl font-semibold text-white">
+              <span className="absolute inset-0 grid place-items-center bg-black/45 text-3xl font-semibold text-white group-data-active:opacity-0">
                 +{photos.length - shown}
               </span>
             )}
