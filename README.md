@@ -6,7 +6,8 @@ A headless React image viewer built on [Base UI](https://base-ui.com) and [Motio
 only — no CSS — so it looks like your product, not like a plugin.
 
 - **Morph open/close** that un-crops `object-fit: cover` thumbnails and interpolates corner radius
-- **Native swiping** — a real `scroll-snap` scroller, so touch and trackpad momentum come from the OS
+- **Native swiping** — a real `scroll-snap` scroller, so touch and trackpad momentum come from the OS; mouse dragging
+  comes from [Blossom Carousel](https://www.blossom-carousel.com), loaded only where there's a mouse
 - **Pinch, trackpad, wheel, double-tap and keyboard zoom**, with rubber-banding and inertial panning
 - **Pull to dismiss** with velocity carried into the close animation; pinch below fit to close
 - **Page scroll sync** — the page behind the viewer follows along, so closing lands on the right thumbnail

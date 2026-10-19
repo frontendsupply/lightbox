@@ -21,14 +21,13 @@ import {
   lerpVisual,
   objectPosition,
   panRange,
-  rubber,
   scaleRect,
   toStyle,
   zoomAt,
   type Rect,
   type Visual,
 } from './math.ts'
-import { createPaging, type Scroller } from './paging.ts'
+import '@blossom-carousel/core/style.css'
 
 export interface LightboxItem {
   src: string
@@ -84,10 +83,6 @@ interface ViewportController {
   goTo(index: number, behavior: ScrollBehavior): void
   /** Stop any scroll in flight and pin the viewport to a slide. */
   freeze(index: number): void
-  dragStart(): void
-  /** Scrolls by a drag; returns how far past either end the drag wants to go. */
-  dragMove(dx: number): number
-  dragEnd(vx: number): void
 }
 
 interface Ctx {
@@ -156,8 +151,6 @@ const OPEN: Transition = { type: 'spring', stiffness: 380, damping: 34 }
 // ζ≈1: no undershoot into small targets (avatars), within a pixel of home in ~0.35s.
 const CLOSE: Transition = { type: 'spring', stiffness: 520, damping: 46 }
 const REDUCED: Transition = { duration: 0.16, ease: 'easeOut' }
-// Page turns (wheel, drag release, arrows, thumbnails): ζ≈0.95, no bounce off the snap point.
-const GLIDE: Transition = { type: 'spring', stiffness: 320, damping: 34, restDelta: 0.5 }
 const SNAP = 'x mandatory'
 const OVERLAY: React.CSSProperties = { position: 'fixed', inset: 0 }
 
@@ -503,103 +496,43 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
   React.useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    // Fractional (offsetLeft rounds to whole pixels, which left a sub-pixel resnap jerk after glides).
     const stride = () => {
       const [a, b] = el.children as unknown as HTMLElement[]
       return a && b ? b.getBoundingClientRect().left - a.getBoundingClientRect().left : el.clientWidth
     }
-    const scroller: Scroller = {
-      get left() {
-        return el.scrollLeft
-      },
-      set left(v) {
-        el.scrollLeft = v
-      },
-      get stride() {
-        return stride()
-      },
-      get max() {
-        return el.scrollWidth - el.clientWidth
-      },
-      count,
-      // Snapping and CSS smooth scrolling would both fight a position we drive frame by frame.
-      snap(on) {
-        el.style.scrollSnapType = on ? SNAP : 'none'
-        el.style.scrollBehavior = on ? '' : 'auto'
-      },
-    }
-    // Opt-in diagnostics: set window.__LIGHTBOX_TRACE__ = (event) => … to record what paging does.
-    const trace = (event: object) => {
-      const hook = (globalThis as { __LIGHTBOX_TRACE__?: (e: object) => void }).__LIGHTBOX_TRACE__
-      hook?.({ ...event, left: Math.round(el.scrollLeft), t: Math.round(performance.now()) })
-    }
-    const snap = scroller.snap
-    scroller.snap = (on) => {
-      trace({ type: 'snap', on })
-      snap(on)
-    }
-    // All the paging logic — wheel, drag, glides, settling — lives in paging.ts, where it is fuzz-tested.
-    const paging = createPaging(
-      scroller,
-      (from, to, velocity, onUpdate, onComplete) => {
-        trace({ type: 'glide', from: Math.round(from), to: Math.round(to), velocity: Math.round(velocity) })
-        return animate(from, to, { ...GLIDE, velocity, onUpdate, onComplete: () => (trace({ type: 'glide-end' }), onComplete()) })
-      },
-      (fn, ms) => {
-        const id = setTimeout(fn, ms)
-        return () => clearTimeout(id)
-      },
-      () => reducedMotion,
-    )
+    // Explicit behaviour: Blossom's stylesheet makes the scroller `scroll-behavior: smooth`.
+    const to = (i: number, behavior: ScrollBehavior) => el.scrollTo({ left: clamp(i, 0, count - 1) * stride(), behavior })
     viewport.current = {
-      goTo: (i, behavior) => (trace({ type: 'goTo', i }), paging.goTo(i, behavior === 'instant')),
-      freeze: (i) => (trace({ type: 'freeze', i }), paging.freeze(i)),
-      dragStart: () => (trace({ type: 'drag-start' }), paging.dragStart()),
-      dragMove: paging.dragMove,
-      dragEnd: (vx) => (trace({ type: 'drag-end', vx: Math.round(vx) }), paging.dragEnd(vx)),
-    }
-
-    const onWheel = (e: WheelEvent) => {
-      if (e.defaultPrevented) return // the image zoomed or panned with it
-      // Chromium lets only the first event of a scroll sequence be cancelled; one that slips through
-      // hands the whole gesture to native scrolling, fighting ours. So every wheel event here is ours.
-      e.preventDefault()
-      if (e.ctrlKey || e.metaKey) return
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientWidth : 1
-      paging.wheel({ dx: e.deltaX * unit, dy: e.deltaY * unit, t: e.timeStamp, discrete: e.deltaMode !== 0 })
-      trace({ type: 'wheel', dx: e.deltaX, dy: e.deltaY, deltaMode: e.deltaMode, cancelable: e.cancelable, mode: paging.mode })
-    }
-    // Touch scrolling stays native; we only make sure nothing is ever left between two slides.
-    let scrolled = false
-    const onPointerDown = (e: PointerEvent) => {
-      scrolled = false
-      if (e.pointerType !== 'mouse') paging.pointerDown()
-      trace({ type: 'pointerdown', pointerType: e.pointerType, mode: paging.mode })
-    }
-    // (pointercancel means the browser just started a native pan — scrollend will follow, so no rest() there)
-    const onPointerUp = () => !scrolled && paging.rest()
-    const onScrollEnd = () => {
-      paging.rest()
-      trace({ type: 'scrollend', mode: paging.mode })
+      goTo: to,
+      // Not 'instant': Chromium lets an in-flight smooth scroll override an instant one on the next
+      // frame and then parks the scroller between snap points. A smooth scroll to the current slide
+      // replaces it cleanly; the close morph follows the slide while it settles.
+      freeze: (i) => to(i, reducedMotion ? 'instant' : 'smooth'),
     }
     const onScroll = () => {
-      scrolled = true
       const p = el.scrollLeft / stride()
       progress.set(p)
       onScrollIndex(clamp(Math.round(p), 0, count - 1))
     }
     el.addEventListener('scroll', onScroll, { passive: true })
-    el.addEventListener('scrollend', onScrollEnd)
-    el.addEventListener('wheel', onWheel, { passive: false })
-    el.addEventListener('pointerdown', onPointerDown, true)
-    el.addEventListener('pointerup', onPointerUp, true)
+
+    // Swiping is native scroll-snap — touch and trackpad get the OS's own physics. Blossom adds mouse
+    // drag on top (and stays out of the way of trackpads: its wheel listener is passive). Like Blossom's
+    // own components, only load it where there's a mouse.
+    let blossom: { destroy(): void } | null = null
+    let cancelled = false
+    if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      import('@blossom-carousel/core').then(({ Blossom }) => {
+        if (cancelled) return
+        const b = Blossom(el, { repeat: false })
+        b.init()
+        blossom = b
+      })
+    }
     return () => {
-      paging.dispose()
+      cancelled = true
+      blossom?.destroy()
       el.removeEventListener('scroll', onScroll)
-      el.removeEventListener('scrollend', onScrollEnd)
-      el.removeEventListener('wheel', onWheel)
-      el.removeEventListener('pointerdown', onPointerDown, true)
-      el.removeEventListener('pointerup', onPointerUp, true)
       viewport.current = null
     }
   }, [viewport, onScrollIndex, count, progress, reducedMotion])
@@ -611,15 +544,16 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
     state: { zoomed: ctx.zoomed },
     props: mergeProps<'div'>(
       {
+        ...({ 'blossom-carousel': 'true' } as object),
         'aria-roledescription': 'carousel',
         style: {
           display: 'flex',
           position: 'relative',
           height: '100%',
+          // Hidden while zoomed: pans move the image, not the gallery (Blossom notices and stops dragging).
           overflowX: ctx.zoomed ? 'hidden' : 'auto',
           overflowY: 'hidden',
           scrollSnapType: SNAP,
-          scrollbarWidth: 'none',
           overscrollBehavior: 'contain',
         },
       },
@@ -682,7 +616,7 @@ export interface LightboxImageProps extends Omit<useRender.ComponentProps<'img'>
 }
 
 type Gesture =
-  | { kind: 'pending' | 'pan' | 'dismiss' | 'swipe'; start: XY; x0: number; y0: number; type: string }
+  | { kind: 'pending' | 'pan' | 'dismiss'; start: XY; x0: number; y0: number; type: string }
   | { kind: 'pinch'; d0: number; m0: XY; m: XY; s0: number; x0: number; y0: number; wasZoomed: boolean }
 
 const dist = (a: XY, b: XY) => Math.hypot(a.x - b.x, a.y - b.y)
@@ -816,6 +750,8 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       const { ctx } = live.current
       if (!live.current.F) return void (await animate(ctx.presence, 0, ctx.options.close))
       const from = current(base())
+      // The gallery may still be settling under us; don't let the slide's own box clip the flight home.
+      slideEl().style.overflow = 'visible'
       const thumb = !ctx.reducedMotion && trigger ? thumbVisual(trigger, aspect) : null
       const to = thumb ?? fadeVisual(from)
       if (thumb) ctx.hideTrigger(index)
@@ -856,7 +792,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     started.current = true
     const el = slideEl()
     const scroller = el.parentElement!
-    scroller.scrollLeft = el.offsetLeft - (scroller.clientWidth - el.offsetWidth) / 2
+    scroller.scrollTo({ left: el.offsetLeft - (scroller.clientWidth - el.offsetWidth) / 2, behavior: 'instant' })
     controller.animateIn(ctx.openTrigger.current)
   }, [ctx.phase, F]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1013,11 +949,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         else if (!horizontal) {
           g.kind = 'dismiss'
           ctx.setDragging(true)
-        } else if (g.type === 'mouse' && ctx.items.length > 1) {
-          g.kind = 'swipe'
-          g.start = p // past the slop, start following without a jump
-          ctx.viewport.current?.dragStart()
-        } else return void (g = null) // touch: horizontal belongs to the native scroller
+        } else return void (g = null) // horizontal belongs to the scroller: native for touch, Blossom for mice
       }
       const dx = p.x - g.start.x
       const dy = p.y - g.start.y
@@ -1033,10 +965,6 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         y.set(g.start.y + dy - (g.start.y - F.y) * k - F.y)
         scale.set(k)
         ctx.presence.set(1 - clamp(Math.abs(dy) / (H * 0.35), 0, 1))
-      } else if (g.kind === 'swipe') {
-        // past the first / last slide the image rubber-bands instead of hitting a wall
-        const over = ctx.viewport.current?.dragMove(dx) ?? 0
-        x.set(-rubber(over, el.clientWidth))
       }
     }
 
@@ -1116,9 +1044,6 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
           settle(1, 0, 0)
           restorePresence()
         }
-      } else if (kind === 'swipe') {
-        ctx.viewport.current?.dragEnd(cancelled ? 0 : v.x)
-        if (x.get()) anims.current.push(animate(x, 0, SETTLE))
       }
     }
 

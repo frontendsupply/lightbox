@@ -17,26 +17,5 @@ const { title, description = 'A headless React lightbox with native-feeling gest
   </head>
   <body>
     <slot />
-    <script is:inline>
-      // ?trace — record what the lightbox's paging does (see Viewport in the library) and offer it for copying.
-      if (new URLSearchParams(location.search).has('trace')) {
-        const KEY = 'lightbox-trace'
-        const log = JSON.parse(sessionStorage.getItem(KEY) || '[]')
-        let dirty = false
-        window.__LIGHTBOX_TRACE__ = (e) => { log.push(e); if (log.length > 5000) log.shift(); dirty = true }
-        const button = document.createElement('button')
-        button.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483647;padding:8px 12px;border-radius:999px;background:#f43f5e;color:#fff;font:600 12px system-ui;border:0;cursor:pointer'
-        const render = () => (button.textContent = `Copy trace (${log.length})`)
-        button.onclick = async () => {
-          await navigator.clipboard.writeText(JSON.stringify({ ua: navigator.userAgent, w: innerWidth, h: innerHeight, dpr: devicePixelRatio, log }))
-          button.textContent = 'Copied ✓'
-          setTimeout(render, 1200)
-        }
-        setInterval(() => { if (dirty) { sessionStorage.setItem(KEY, JSON.stringify(log)); dirty = false; render() } }, 500)
-        render()
-        document.addEventListener('DOMContentLoaded', () => document.body.append(button))
-        if (document.body) document.body.append(button)
-      }
-    </script>
   </body>
 </html>

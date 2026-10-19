@@ -14,10 +14,9 @@ description: "The canonical interaction rules. Every input method gets the behav
 | **Double tap / double click** | Zoom to the point (≥ 2×, or enough to fill the screen) | Back to fit |
 | **Tap image** (touch) | Toggle `data-ui-hidden` | Toggle `data-ui-hidden` |
 | **Tap / click backdrop** | Close (`closeOnBackdropClick`) | Close |
-| **Mouse drag ← →** | Follows the cursor; on release goes the way you dragged once 15% in (or on a quick flick) | Pan |
+| **Mouse drag ← →** | Next / previous, with momentum ([Blossom](https://www.blossom-carousel.com)'s drag engine) | Pan |
 | **Mouse drag ↑ ↓** | Pull to dismiss | Pan |
-| **Trackpad two-finger swipe ← →** | Scrolls 1:1, momentum included, through as many photos as you go; when you stop it settles on the next photo in your direction of travel | Pan |
-| **Horizontal mouse wheel** | One notch, one page | Pan |
+| **Trackpad two-finger swipe ← →** | Native scroll-snap: the OS's own physics | Pan |
 | **Wheel / two-finger scroll ↑ ↓** | — (or zoom with `wheelToZoom`) | Pan (or zoom with `wheelToZoom`) |
 | **Ctrl / ⌘ + wheel** | Zoom around the cursor | Zoom around the cursor |
 | **← →** | Previous / next | Previous / next |
@@ -29,13 +28,9 @@ description: "The canonical interaction rules. Every input method gets the behav
 - **Swiping is real scrolling.** The viewport is a CSS `scroll-snap` container, so touch swipes get the OS's own
   momentum and overscroll. Idle slides use `touch-action: pan-x`, which hands horizontal drags to the browser and gives us
   vertical ones for free: direction locking without heuristics.
-- **Trackpads scroll like everything else on your Mac.** Every scroll delta moves the photos 1:1 — fingers and
-  momentum alike — with nothing capped, locked or second-guessed mid-gesture. Only when the input is done (a pause, or
-  momentum down to 1–2px crumbs) does a critically damped spring, seeded with your speed, settle on the neighbouring
-  photo in the direction you were moving — once you're 15% into it, or straight away if the swipe was quick — never
-  against your motion. Browsers don't expose
-  when fingers leave the trackpad, so anything that guesses it — and then ignores input — will freeze and jump on real
-  hands; this doesn't guess. Tests replay swipes recorded from a real MacBook trackpad.
+- **Trackpads are left alone.** A two-finger swipe is plain native scrolling with CSS scroll-snap — no JavaScript
+  wheel handling at all, so it feels exactly like every other scroller on your Mac. Mouse dragging is added on top by
+  [Blossom Carousel](https://www.blossom-carousel.com), which only loads on devices with a mouse (0kb on touch).
 - **Three-finger drag pauses on purpose.** If you drag with three fingers (Accessibility → Pointer Control → Trackpad
   Options), macOS holds the drag for a moment after you lift so you can reposition. Every app sees that delay; use a
   two-finger swipe to page.
@@ -47,17 +42,3 @@ description: "The canonical interaction rules. Every input method gets the behav
 - **The page keeps up.** As you navigate, the page behind the viewer scrolls the current thumbnail into view
   (`scrollTriggerIntoView`). When you close, the photo always has somewhere visible to land; if it doesn't, it fades.
 - **Reduced motion is respected.** With `prefers-reduced-motion`, morphs become short fades.
-
-## Debugging gestures
-
-If swiping ever feels wrong on your hardware, add `?trace` to any page of these docs. A **Copy trace** button appears;
-it records every wheel event and every paging decision (follows, settles, glides, snapping) so the exact sequence can be
-replayed in the tests. Under the hood it is one optional global hook in the library:
-
-```js
-window.__LIGHTBOX_TRACE__ = (event) => console.log(event)
-```
-
-The paging logic itself (`paging.ts`) is DOM-free and fuzz-tested: thousands of random interleavings of recorded
-trackpad swipes, steady scrolls, drags, keys, taps and closes must always come to rest exactly on a slide with snapping
-restored.
