@@ -7,9 +7,13 @@
  * makes the content freeze, then jump.
  *
  * Only when the input is finished does a settle happen, toward the neighbouring slide in the
- * direction of travel. "Finished" is either a pause, or a momentum tail that has shrunk to crumbs
- * (≤2px a frame after real motion) — waiting those out would read as a hang. Crumbs that keep
- * arriving during the settle are swallowed; anything bigger is the fingers again and takes over.
+ * direction of travel. "Finished" is either a pause, or a momentum tail that has slowed to crumbs —
+ * waiting those out would read as a hang. Crumbs that keep arriving during the settle are
+ * swallowed; anything faster is the fingers again and takes over.
+ *
+ * Every threshold is a rate (px/ms from event timestamps), not pixels per event: a 120Hz display
+ * delivers twice the events at half the size, and a busy main thread makes Chromium merge queued
+ * events into fewer, bigger ones. Per-event sizes would misread both.
  */
 export type WheelStep =
   | { type: 'move'; by: number }
@@ -19,28 +23,37 @@ export type WheelStep =
 
 type Sample = { t: number; d: number }
 
-const CRUMB = 2
+const FRAME = 16
+/** ≤2px a 60Hz frame: the end of a momentum tail. */
+const CRUMB_RATE = 2 / FRAME
+/** What still counts as a crumb once a settle has begun (3px a frame). */
+const SWALLOW_RATE = 3 / FRAME
+/** A gesture with real motion in it (4px a frame), as opposed to a nudge. */
+const MOTION_RATE = 4 / FRAME
+/** A quick swipe: intent even if it travelled only a little. */
+const FLICK_RATE = 0.45
+/** A big delta this long after any other wheel input is a mouse-wheel notch, not a trackpad. */
+const NOTCH_GAP = 250
+/** How much recent input the crumb test looks at (about three 60Hz frames). */
+const WINDOW = 48
 
 export function createWheelPager() {
   let recent: Sample[] = []
-  let peak = 0
-  // Over the whole gesture: how far it went and the fastest it moved (px/ms, from timestamps, so 120Hz
-  // displays that deliver twice the events at half the size measure the same).
   let travel = 0
   let speed = 0
-  let settling: { last: number; t: number; dir: number } | null = null
+  let lastT = -Infinity
+  let settling: { t: number; dir: number } | null = null
 
-  const finish = (): WheelStep => {
+  const finish = (): Extract<WheelStep, { type: 'settle' }> => {
     const sum = recent.reduce((s, x) => s + x.d, 0)
     const [first, ...rest] = recent
     const v = first && rest.length ? (rest.reduce((s, x) => s + x.d, 0) / Math.max(1, rest.at(-1)!.t - first.t)) * 1000 : 0
-    // A quick swipe means "next" even if the momentum carried it only a little way (macOS keeps that short).
     // The overall direction, unless the last moments clearly went the other way (a pull-back);
     // a pixel of jitter as the fingers stop must not flip a 45% swipe backwards.
     const dir = Math.sign(Math.abs(sum) >= 10 ? sum : travel) as -1 | 0 | 1
-    const flick = speed >= 0.45 && Math.abs(travel) >= 30 && Math.sign(travel) === dir
+    const flick = speed >= FLICK_RATE && Math.abs(travel) >= 30 && Math.sign(travel) === dir
+    settling = { t: recent.at(-1)?.t ?? lastT, dir: dir || Math.sign(travel) }
     recent = []
-    peak = 0
     travel = 0
     speed = 0
     return { type: 'settle', dir, velocity: v, flick }
@@ -52,34 +65,35 @@ export function createWheelPager() {
       return recent.length > 0 || !!settling
     },
     wheel(d: number, t: number, discrete: boolean): WheelStep {
+      if (d === 0) return { type: 'ignore' } // purely vertical noise: neither motion nor the fingers coming back
+      const gap = t - lastT
+      lastT = t
+      const rate = Math.abs(d) / Math.max(8, gap > 100 ? FRAME : gap)
       if (settling) {
-        const crumb = Math.sign(d) === settling.dir && Math.abs(d) <= Math.min(3, Math.abs(settling.last) + 1) && t - settling.t < 120
-        settling.last = d
+        const crumb = Math.sign(d) === settling.dir && rate <= SWALLOW_RATE && t - settling.t < 120
         settling.t = t
         if (crumb) return { type: 'ignore' }
         settling = null
       }
-      if (discrete || (!recent.length && Math.abs(d) >= 50)) return { type: 'page', dir: Math.sign(d) as -1 | 1 }
-      const prev = recent.at(-1)
-      if (prev) speed = Math.max(speed, Math.abs(d) / Math.max(8, t - prev.t))
+      if (discrete || (!recent.length && gap > NOTCH_GAP && Math.abs(d) >= 50)) return { type: 'page', dir: Math.sign(d) as -1 | 1 }
+      speed = Math.max(speed, rate)
       travel += d
       recent.push({ t, d })
       recent = recent.filter((s) => t - s.t <= 100)
-      peak = Math.max(peak, Math.abs(d))
-      const tail = recent.slice(-3)
-      if (peak >= 4 && tail.length === 3 && tail.every((s) => Math.abs(s.d) <= CRUMB && Math.sign(s.d) === Math.sign(d))) {
-        settling = { last: d, t, dir: Math.sign(d) }
-        return finish()
-      }
+      // Crumbs = the average rate over the last ~3 frames, which reads the same at 60Hz, 120Hz or with
+      // merged events (judging single events made "1 2 1 1 1 2" at 120Hz look like a tail).
+      const window = recent.filter((s) => t - s.t < WINDOW)
+      const full = recent.some((s) => t - s.t >= WINDOW - 8)
+      const slow = window.reduce((sum, s) => sum + Math.abs(s.d), 0) / WINDOW <= CRUMB_RATE
+      if (speed >= MOTION_RATE && full && slow && window.every((s) => Math.sign(s.d) === Math.sign(d))) return finish()
       return { type: 'move', by: d }
     },
-    /** No input for a while: the fingers lifted without momentum. */
+    /** No input for a while: the fingers lifted without momentum (late momentum is still swallowed). */
     idle(): WheelStep | null {
       return recent.length ? finish() : null
     },
     reset() {
       recent = []
-      peak = 0
       travel = 0
       speed = 0
       settling = null

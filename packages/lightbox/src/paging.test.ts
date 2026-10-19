@@ -60,12 +60,15 @@ function seeded(seed: number) {
   return () => (seed = (seed * 16807) % 2147483647) / 2147483647
 }
 
-function wheelStream(e: ReturnType<typeof env>, deltas: number[], dy: (i: number) => number = () => 0) {
+function wheelStream(e: ReturnType<typeof env>, deltas: number[], dy: (i: number) => number = () => 0, dt = 16) {
   for (let i = 0; i < deltas.length; i++) {
     assert.equal(e.paging.wheel({ dx: deltas[i]!, dy: dy(i), t: e.now, discrete: false }), true, 'every wheel event is consumed (never native)')
-    e.advance(16)
+    e.advance(dt)
   }
 }
+const to120Hz = (deltas: number[]) => deltas.flatMap((d) => [Math.trunc(d / 2), d - Math.trunc(d / 2)])
+/** A busy main thread: Chromium coalesces queued wheel events into fewer, bigger ones. */
+const merged = (deltas: number[], n: number) => Array.from({ length: Math.ceil(deltas.length / n) }, (_, i) => deltas.slice(i * n, i * n + n).reduce((a, b) => a + b, 0))
 
 const atRest = (e: ReturnType<typeof env>, label: string) => {
   e.advance(5000)
@@ -87,7 +90,13 @@ test('fuzz: any interleaving of wheel, drag, keys, closes and touches comes to r
     for (let k = 0; k < ops; k++) {
       const op = Math.floor(rnd() * 9)
       const sign = rnd() < 0.5 ? -1 : 1
-      if (op <= 2) wheelStream(e, pick(REAL).map((d) => d * sign))
+      if (op <= 2) {
+        const deltas = pick(REAL).map((d) => d * sign)
+        const variant = Math.floor(rnd() * 3)
+        if (variant === 0) wheelStream(e, deltas)
+        else if (variant === 1) wheelStream(e, to120Hz(deltas), undefined, 8)
+        else wheelStream(e, merged(deltas, 2 + Math.floor(rnd() * 3)), undefined, 40)
+      }
       else if (op === 3) wheelStream(e, Array.from({ length: 20 + Math.floor(rnd() * 100) }, () => sign * Math.round(8 + (rnd() - 0.5) * 6)))
       else if (op === 4) wheelStream(e, Array.from({ length: 40 }, (_, i) => sign * (i < 3 ? 1 : 9)), (i) => (i < 3 ? 4 : 1)) // starts vertical
       else if (op === 5) {
@@ -140,6 +149,20 @@ test('a 40–50% swipe goes to the next slide — wheel and mouse drag alike', (
       d.paging.dragEnd(0) // released while still
       atRest(d, 'drag')
       assert.equal(d.st.left / stride, 4, `drag ${frac} of ${stride}`)
+    }
+  }
+})
+
+test('120Hz and merged events: a 45% swipe still goes to the next slide', () => {
+  for (const stride of [449, 1624]) {
+    const px = Math.round(0.45 * stride)
+    const slow = Array.from({ length: Math.ceil(px / 6) }, () => 6)
+    for (const [deltas, dt] of [[to120Hz(slow), 8], [merged(slow, 3), 48]] as const) {
+      const e = env(12, stride)
+      e.paging.goTo(3, true)
+      wheelStream(e, [...deltas], undefined, dt)
+      atRest(e, 'variant')
+      assert.equal(e.st.left / stride, 4)
     }
   }
 })

@@ -101,3 +101,50 @@ test('settle target: forward once 15% in, never against the motion', () => {
   assert.equal(settleTarget(4, -1, 0.15), 4)
   assert.equal(settleTarget(3.4, 0, 0.15), 3)
 })
+
+// Real-input conditions replays at a fixed 16ms never show (found in an independent audit).
+const at120Hz = (deltas: number[]) => deltas.flatMap((d) => [Math.trunc(d / 2), d - Math.trunc(d / 2)])
+const play120 = (deltas: number[], pager = createWheelPager()) => {
+  const steps: WheelStep[] = at120Hz(deltas).map((d, i) => pager.wheel(d, i * 8, false))
+  const end = pager.idle()
+  if (end) steps.push(end)
+  return steps
+}
+
+test('120Hz: a slow deliberate swipe is not mistaken for momentum crumbs', () => {
+  const steps = play120(Array(40).fill(6)) // 6px per 60Hz frame = 3px per 120Hz event
+  assert.ok(steps.slice(0, -1).every((s) => s.type === 'move'))
+  assert.equal(steps.at(-1)!.type, 'settle')
+})
+
+test('120Hz: recorded swipes settle the same way as at 60Hz', () => {
+  for (const deltas of [REAL.lightForward, REAL.slowBackward, REAL.slowForwardWithPause]) {
+    const at60 = play(deltas).settles.map((s) => [s.dir, s.flick])
+    const at120 = play120(deltas).filter((s) => s.type === 'settle').map((s) => [(s as any).dir, (s as any).flick])
+    assert.deepEqual(at120, at60)
+  }
+})
+
+test('merged crumbs (busy main thread) during a settle are still swallowed', () => {
+  const pager = createWheelPager()
+  const { settles } = play([10, 12, 10, 8, 6, 4, 2, 2, 2], pager)
+  assert.equal(settles.length, 1)
+  const t = 9 * 16
+  assert.equal(pager.wheel(4, t + 32, false).type, 'ignore') // two 2px crumbs merged
+  assert.equal(pager.wheel(6, t + 80, false).type, 'ignore') // three merged
+})
+
+test('momentum arriving after a pause-triggered settle is swallowed too', () => {
+  const pager = createWheelPager()
+  ;[10, 10, 10].forEach((d, i) => pager.wheel(d, i * 16, false))
+  assert.equal(pager.idle()?.type, 'settle')
+  assert.equal(pager.wheel(2, 32 + 100, false).type, 'ignore')
+})
+
+test('a big delta right after other wheel input is not a mouse-wheel notch', () => {
+  const pager = createWheelPager()
+  ;[10, 30].forEach((d, i) => pager.wheel(d, i * 16, false))
+  assert.equal(pager.wheel(60, 32, false).type, 'move')
+  const fresh = createWheelPager()
+  assert.equal(fresh.wheel(60, 1000, false).type, 'page') // isolated → notch
+})

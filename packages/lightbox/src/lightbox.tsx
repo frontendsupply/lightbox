@@ -503,9 +503,10 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
   React.useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
+    // Fractional (offsetLeft rounds to whole pixels, which left a sub-pixel resnap jerk after glides).
     const stride = () => {
       const [a, b] = el.children as unknown as HTMLElement[]
-      return a && b ? b.offsetLeft - a.offsetLeft : el.clientWidth
+      return a && b ? b.getBoundingClientRect().left - a.getBoundingClientRect().left : el.clientWidth
     }
     const scroller: Scroller = {
       get left() {
@@ -1004,7 +1005,10 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       if (samples.length > 20) samples.shift()
       if (g.kind === 'pending') {
         if (dist(p, g.start) < 6) return
-        const horizontal = Math.abs(p.x - g.start.x) > Math.abs(p.y - g.start.y)
+        const adx = Math.abs(p.x - g.start.x)
+        const ady = Math.abs(p.y - g.start.y)
+        // A mouse swiping slightly diagonally is still swiping; only a clearly vertical drag dismisses.
+        const horizontal = g.type === 'mouse' && ctx.items.length > 1 ? ady <= adx * 1.5 : adx > ady
         if (scale.get() > 1.01) g.kind = 'pan'
         else if (!horizontal) {
           g.kind = 'dismiss'
