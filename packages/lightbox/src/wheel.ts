@@ -13,7 +13,7 @@
  */
 export type WheelStep =
   | { type: 'move'; by: number }
-  | { type: 'settle'; dir: -1 | 0 | 1; velocity: number } // velocity in px/s, to seed the spring
+  | { type: 'settle'; dir: -1 | 0 | 1; velocity: number; flick: boolean } // velocity in px/s, to seed the spring
   | { type: 'page'; dir: -1 | 1 } // a mouse-wheel notch
   | { type: 'ignore' }
 
@@ -24,15 +24,25 @@ const CRUMB = 2
 export function createWheelPager() {
   let recent: Sample[] = []
   let peak = 0
+  // Over the whole gesture: how far it went and the fastest it moved (px/ms, from timestamps, so 120Hz
+  // displays that deliver twice the events at half the size measure the same).
+  let travel = 0
+  let speed = 0
   let settling: { last: number; t: number; dir: number } | null = null
 
   const finish = (): WheelStep => {
     const sum = recent.reduce((s, x) => s + x.d, 0)
     const [first, ...rest] = recent
     const v = first && rest.length ? (rest.reduce((s, x) => s + x.d, 0) / Math.max(1, rest.at(-1)!.t - first.t)) * 1000 : 0
+    // A quick swipe means "next" even if the momentum carried it only a little way (macOS keeps that short).
+    // The last direction wins: a flick that was then pulled back is a pull-back.
+    const dir = Math.sign(sum || travel) as -1 | 0 | 1
+    const flick = speed >= 0.45 && Math.abs(travel) >= 30 && Math.sign(travel) === dir
     recent = []
     peak = 0
-    return { type: 'settle', dir: Math.sign(sum) as -1 | 0 | 1, velocity: v }
+    travel = 0
+    speed = 0
+    return { type: 'settle', dir, velocity: v, flick }
   }
 
   return {
@@ -49,6 +59,9 @@ export function createWheelPager() {
         settling = null
       }
       if (discrete || (!recent.length && Math.abs(d) >= 50)) return { type: 'page', dir: Math.sign(d) as -1 | 1 }
+      const prev = recent.at(-1)
+      if (prev) speed = Math.max(speed, Math.abs(d) / Math.max(8, t - prev.t))
+      travel += d
       recent.push({ t, d })
       recent = recent.filter((s) => t - s.t <= 100)
       peak = Math.max(peak, Math.abs(d))
@@ -66,6 +79,8 @@ export function createWheelPager() {
     reset() {
       recent = []
       peak = 0
+      travel = 0
+      speed = 0
       settling = null
     },
   }

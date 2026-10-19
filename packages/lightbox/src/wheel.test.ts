@@ -75,6 +75,22 @@ test('a mouse wheel notch pages', () => {
   assert.deepEqual(createWheelPager().wheel(-120, 0, false), { type: 'page', dir: -1 })
 })
 
+test('a light flick counts as intent; a slow nudge does not', () => {
+  // lightForward travels only 76px in total — under a wide screen's distance threshold — but was quick,
+  // also when events arrive a little late (browser timers, busy frames)
+  assert.equal(play(REAL.lightForward).settles[0]!.flick, true)
+  const late = createWheelPager()
+  const steps = REAL.lightForward.map((d, i) => late.wheel(d, i * 19, false)) // 19ms apart
+  const settle = steps.find((s) => s.type === 'settle') ?? late.idle()
+  assert.ok(settle?.type === 'settle' && settle.flick)
+  assert.equal(play([2, 3, 3, 4, 3, 2]).settles[0]!.flick, false)
+  assert.equal(play(Array(30).fill(4)).settles[0]!.flick, false) // slow drag: distance decides
+  // flicked forward, then pulled back before letting go: settles backward, no flick
+  const back = play([10, 14, 12, ...Array(12).fill(-4)]).settles[0]!
+  assert.equal(back.dir, -1)
+  assert.equal(back.flick, false)
+})
+
 test('settle target: forward once 15% in, never against the motion', () => {
   assert.equal(settleTarget(3.17, 1, 0.15), 4)
   assert.equal(settleTarget(3.1, 1, 0.15), 3)

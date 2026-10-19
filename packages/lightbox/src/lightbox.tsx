@@ -579,14 +579,15 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
 
     // Trackpad swipes and horizontal mouse wheels (see wheel.ts): every delta scrolls, 1:1, across as many
     // slides as the user goes; once the input is done, settle on the neighbour in the direction of travel.
-    const settleWheel = (dir: number, velocity: number) => {
+    const settleWheel = (dir: number, velocity: number, flick: boolean) => {
       wheeling = false
       const s = stride()
-      glide(settleTarget(el.scrollLeft / s, dir, Math.min(0.15, 100 / s)), velocity)
+      // A flick turns to the next slide however little it travelled; otherwise it has to be 15% (≤100px) in.
+      glide(settleTarget(el.scrollLeft / s, dir, flick ? 0.01 : Math.min(0.15, 100 / s)), velocity)
     }
     const onIdle = () => {
       const step = pager.idle()
-      if (step?.type === 'settle') settleWheel(step.dir, step.velocity)
+      if (step?.type === 'settle') settleWheel(step.dir, step.velocity, step.flick)
     }
     const onWheel = (e: WheelEvent) => {
       // Zoomed images pan and pinches zoom (both handled, and prevented, by <Image>).
@@ -599,7 +600,7 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
       clearTimeout(quiet)
       if (step.type === 'ignore') return
       if (step.type === 'page') return glide((glideTarget ?? Math.round(el.scrollLeft / stride())) + step.dir)
-      if (step.type === 'settle') return settleWheel(step.dir, step.velocity)
+      if (step.type === 'settle') return settleWheel(step.dir, step.velocity, step.flick)
       if (!wheeling) {
         takeOver()
         wheeling = true
