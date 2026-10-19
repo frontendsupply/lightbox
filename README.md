@@ -42,7 +42,6 @@ import { Lightbox } from '@frontendsupply/lightbox'
 | --- | --- |
 | [`packages/lightbox`](packages/lightbox) | The library (`@frontendsupply/lightbox`) |
 | [`apps/docs`](apps/docs) | Docs site — Astro, MDX, Tailwind v4, `cn` |
-| [`PLAN.md`](PLAN.md) | Design notes and roadmap |
 
 ```bash
 pnpm install

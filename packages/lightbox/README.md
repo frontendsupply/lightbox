@@ -36,22 +36,6 @@ import { Lightbox } from '@frontendsupply/lightbox'
 </Lightbox.Root>
 ```
 
-## Repo
-
-| Path | |
-| --- | --- |
-| [`packages/lightbox`](packages/lightbox) | The library (`@frontendsupply/lightbox`) |
-| [`apps/docs`](apps/docs) | Docs site — Astro, MDX, Tailwind v4, `cn` |
-| [`PLAN.md`](PLAN.md) | Design notes and roadmap |
-
-```bash
-pnpm install
-pnpm dev        # docs at localhost:4321
-pnpm test       # geometry unit tests
-pnpm typecheck
-pnpm build
-```
-
 ## License
 
 MIT
