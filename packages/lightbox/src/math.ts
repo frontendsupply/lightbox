@@ -5,7 +5,7 @@ export type Visual = { img: Rect; clip: Rect; radius: number; opacity: number }
 
 export const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+export const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 const lerpRect = (a: Rect, b: Rect, t: number): Rect => ({
   x: lerp(a.x, b.x, t),

@@ -17,6 +17,7 @@ import {
   clamp,
   fit,
   intersect,
+  lerp,
   lerpVisual,
   objectPosition,
   panRange,
@@ -27,6 +28,7 @@ import {
   type Rect,
   type Visual,
 } from './math.ts'
+import { createWheelPager } from './wheel.ts'
 
 export interface LightboxItem {
   src: string
@@ -97,6 +99,8 @@ interface Ctx {
   uiHidden: boolean
   reducedMotion: boolean
   presence: MotionValue<number>
+  /** Fractional index of what's in view: 2.5 is halfway between the third and fourth slide. */
+  progress: MotionValue<number>
   options: Required<Pick<LightboxRootProps, 'maxZoom' | 'wheelToZoom' | 'closeOnBackdropClick' | 'scrollTriggerIntoView'>> & {
     open: Transition
     close: Transition
@@ -152,6 +156,8 @@ const OPEN: Transition = { type: 'spring', stiffness: 380, damping: 34 }
 // ζ≈1: no undershoot into small targets (avatars), within a pixel of home in ~0.35s.
 const CLOSE: Transition = { type: 'spring', stiffness: 520, damping: 46 }
 const REDUCED: Transition = { duration: 0.16, ease: 'easeOut' }
+// Page turns (wheel, drag release, arrows, thumbnails): ζ≈0.95, no bounce off the snap point.
+const GLIDE: Transition = { type: 'spring', stiffness: 320, damping: 34, restDelta: 0.5 }
 const SNAP = 'x mandatory'
 const OVERLAY: React.CSSProperties = { position: 'fixed', inset: 0 }
 
@@ -241,6 +247,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   const [uiHidden, setUiHidden] = React.useState(false)
   const reducedMotion = useReducedMotion() ?? false
   const presence = useMotionValue(0)
+  const progress = useMotionValue(0)
   const [triggers] = React.useState(() => new Map<number, Set<HTMLElement>>())
   const [images] = React.useState(() => new Map<number, ImageController>())
   const viewport = React.useRef<ViewportController | null>(null)
@@ -273,6 +280,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
     if (live.current.phase !== 'closed' || !items.length) return
     openTrigger.current = trigger ?? pickTrigger(i, false)
     live.current = { index: clamp(i, 0, items.length - 1), phase: 'opening' }
+    progress.set(live.current.index)
     setIndex(live.current.index)
     setUiHidden(false)
     setPhase('opening')
@@ -354,6 +362,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
     uiHidden,
     reducedMotion,
     presence,
+    progress,
     options: {
       maxZoom,
       wheelToZoom,
@@ -490,38 +499,68 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
   const count = ctx.items.length
   const { viewport, onScrollIndex } = ctx
 
+  const { progress, reducedMotion } = ctx
   React.useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
     let dragFrom = 0
     let dragging = false
+    let glider: AnimationPlaybackControls | null = null
+    let wheelFrom: number | null = null
+    let quiet: ReturnType<typeof setTimeout> | undefined
+    const pager = createWheelPager(() => el.clientWidth)
     const stride = () => {
       const [a, b] = el.children as unknown as HTMLElement[]
       return a && b ? b.offsetLeft - a.offsetLeft : el.clientWidth
     }
+    const maxLeft = () => el.scrollWidth - el.clientWidth
     const restore = () => {
-      if (dragging) return
+      if (dragging || glider || wheelFrom !== null) return
       el.style.scrollSnapType = SNAP
       el.style.scrollBehavior = ''
     }
+    // Snapping and CSS smooth scrolling would both fight a scroll position we drive frame by frame.
+    const takeOver = () => {
+      glider?.stop()
+      glider = null
+      el.style.scrollSnapType = 'none'
+      el.style.scrollBehavior = 'auto'
+    }
+    const glide = (i: number, velocity = 0) => {
+      takeOver()
+      const to = clamp(i, 0, count - 1) * stride()
+      if (reducedMotion || Math.abs(el.scrollLeft - to) < 0.5) {
+        el.scrollLeft = to
+        return restore()
+      }
+      glider = animate(el.scrollLeft, to, {
+        ...GLIDE,
+        velocity: clamp(velocity, -8000, 8000),
+        onUpdate: (x) => (el.scrollLeft = x),
+        onComplete: () => {
+          glider = null
+          restore()
+        },
+      })
+    }
     viewport.current = {
-      goTo: (i, behavior) => el.scrollTo({ left: i * stride(), behavior }),
+      goTo: (i, behavior) => (behavior === 'instant' ? ((el.scrollLeft = i * stride()), restore()) : glide(i)),
       freeze(i) {
         dragging = false
-        el.style.scrollSnapType = SNAP
-        el.style.scrollBehavior = ''
-        el.scrollTo({ left: i * stride(), behavior: 'instant' })
+        wheelFrom = null
+        pager.reset()
+        takeOver()
+        el.scrollLeft = i * stride()
+        restore()
       },
       dragStart() {
+        takeOver()
         dragging = true
         dragFrom = el.scrollLeft
-        // Mandatory snapping would fight every programmatic scroll; CSS smooth scrolling would lag behind the pointer.
-        el.style.scrollSnapType = 'none'
-        el.style.scrollBehavior = 'auto'
       },
       dragMove(dx) {
         const want = dragFrom - dx
-        const left = clamp(want, 0, el.scrollWidth - el.clientWidth)
+        const left = clamp(want, 0, maxLeft())
         el.scrollLeft = left
         return want - left
       },
@@ -529,21 +568,64 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
         dragging = false
         const s = stride()
         const from = Math.round(dragFrom / s)
-        const target = clamp(Math.round((el.scrollLeft - vx * 0.3) / s), Math.max(0, from - 1), Math.min(count - 1, from + 1))
-        if (Math.abs(el.scrollLeft - target * s) < 1) return restore()
-        el.style.scrollBehavior = ''
-        el.scrollTo({ left: target * s, behavior: 'smooth' })
-        if ('onscrollend' in window) el.addEventListener('scrollend', restore, { once: true })
-        else setTimeout(restore, 450)
+        glide(clamp(Math.round((el.scrollLeft - vx * 0.3) / s), from - 1, from + 1), -vx)
       },
     }
-    const onScroll = () => onScrollIndex(clamp(Math.round(el.scrollLeft / stride()), 0, count - 1))
+
+    // Trackpad swipes and horizontal mouse wheels: one gesture, one page (see wheel.ts).
+    const settleWheel = () => {
+      if (!pager.end() || wheelFrom === null) return
+      const from = Math.round(wheelFrom / stride())
+      wheelFrom = null
+      glide(from)
+    }
+    const onWheel = (e: WheelEvent) => {
+      // Zoomed images pan and pinches zoom (both handled, and prevented, by <Image>).
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey) return
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientWidth : 1
+      const dx = e.deltaX * unit
+      if (!pager.busy && Math.abs(dx) <= Math.abs(e.deltaY * unit)) return
+      e.preventDefault()
+      const step = pager.wheel(dx, e.timeStamp, e.deltaMode !== 0)
+      if (step.type === 'ignore') return
+      if (wheelFrom === null) {
+        takeOver()
+        wheelFrom = el.scrollLeft
+      }
+      clearTimeout(quiet)
+      if (step.type === 'follow') {
+        el.scrollLeft = clamp(wheelFrom + step.offset, 0, maxLeft())
+        quiet = setTimeout(settleWheel, 90)
+      } else {
+        const from = Math.round(wheelFrom / stride())
+        wheelFrom = null
+        glide(from + step.dir, step.velocity)
+      }
+    }
+    // A finger or a mouse button takes over from any glide in flight.
+    const onPointerDown = () => {
+      if (!glider) return
+      glider.stop()
+      glider = null
+      restore()
+    }
+    const onScroll = () => {
+      const p = el.scrollLeft / stride()
+      progress.set(p)
+      onScrollIndex(clamp(Math.round(p), 0, count - 1))
+    }
     el.addEventListener('scroll', onScroll, { passive: true })
+    el.addEventListener('wheel', onWheel, { passive: false })
+    el.addEventListener('pointerdown', onPointerDown, true)
     return () => {
+      clearTimeout(quiet)
+      glider?.stop()
       el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('pointerdown', onPointerDown, true)
       viewport.current = null
     }
-  }, [viewport, onScrollIndex, count])
+  }, [viewport, onScrollIndex, count, progress, reducedMotion])
 
   return useRender({
     defaultTagName: 'div',
@@ -1201,6 +1283,139 @@ const NavButton = ({ step, render, ...props }: useRender.ComponentProps<'button'
 const Prev = (props: useRender.ComponentProps<'button'>) => <NavButton step={-1} {...props} />
 const Next = (props: useRender.ComponentProps<'button'>) => <NavButton step={1} {...props} />
 
+type Box = { x: number; y: number; w: number; h: number }
+interface ThumbsCtx {
+  register(index: number, el: HTMLElement): () => void
+  indicator(el: HTMLElement): () => void
+}
+const ThumbsContext = React.createContext<ThumbsCtx | null>(null)
+function useThumbs() {
+  const thumbs = React.useContext(ThumbsContext)
+  if (!thumbs) throw new Error('<Lightbox.Thumbnail> and <Lightbox.ThumbnailIndicator> must be inside <Lightbox.Thumbnails>.')
+  return thumbs
+}
+
+/**
+ * A strip of thumbnails. It glides to keep the indicator centred as the viewer moves, and the
+ * indicator travels between thumbs with the swipe — position and size — not just on settle.
+ */
+function Thumbnails({ render, ...props }: useRender.ComponentProps<'div'>) {
+  const ctx = useCtx()
+  const ref = React.useRef<HTMLDivElement>(null)
+  const [api] = React.useState(() => {
+    const els = new Map<number, HTMLElement>()
+    const boxes = new Map<number, Box>()
+    const indicators = new Set<HTMLElement>()
+    const measure = (i: number, el: HTMLElement) => boxes.set(i, { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight })
+    const remeasure = () => els.forEach((el, i) => measure(i, el))
+    let strip: HTMLElement | null = null
+    let ro: ResizeObserver | null = null
+    const place = (p: number) => {
+      const i = Math.floor(p)
+      const a = boxes.get(clamp(i, 0, els.size - 1))
+      const b = boxes.get(clamp(i + 1, 0, els.size - 1)) ?? a
+      if (!a || !b) return
+      const t = clamp(p - i, 0, 1)
+      const box = { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), w: lerp(a.w, b.w, t), h: lerp(a.h, b.h, t) }
+      indicators.forEach((el) => {
+        el.style.transform = `translate(${box.x}px, ${box.y}px)`
+        el.style.width = `${box.w}px`
+        el.style.height = `${box.h}px`
+      })
+      if (strip) strip.scrollLeft = box.x + box.w / 2 - strip.clientWidth / 2
+    }
+    return {
+      els,
+      remeasure,
+      place,
+      attach(el: HTMLElement) {
+        strip = el
+        ro = new ResizeObserver(() => {
+          remeasure()
+          place(ctx.progress.get())
+        })
+        ro.observe(el)
+        els.forEach((t) => ro!.observe(t))
+        return () => ro?.disconnect()
+      },
+      ctx: {
+        register(index: number, el: HTMLElement) {
+          els.set(index, el)
+          measure(index, el)
+          ro?.observe(el)
+          return () => {
+            els.delete(index)
+            boxes.delete(index)
+            ro?.unobserve(el)
+          }
+        },
+        indicator(el: HTMLElement) {
+          indicators.add(el)
+          return () => void indicators.delete(el)
+        },
+      } satisfies ThumbsCtx,
+    }
+  })
+
+  React.useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    // Thumb offsets are measured against the strip, so it must be positioned (absolute, fixed… all fine).
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative'
+    const detach = api.attach(el)
+    api.remeasure()
+    api.place(ctx.progress.get())
+    const off = ctx.progress.on('change', api.place)
+    return () => {
+      off()
+      detach()
+    }
+  }, [api, ctx.progress])
+
+  const element = useRender({
+    defaultTagName: 'div',
+    render,
+    ref,
+    props: mergeProps<'div'>({ style: { overflowX: 'auto', scrollBehavior: 'auto', scrollbarWidth: 'none' } }, props),
+  })
+  return <ThumbsContext.Provider value={api.ctx}>{element}</ThumbsContext.Provider>
+}
+
+export interface LightboxThumbnailProps extends useRender.ComponentProps<'button'> {
+  index: number
+}
+
+function Thumbnail({ index, render, ...props }: LightboxThumbnailProps) {
+  const ctx = useCtx()
+  const thumbs = useThumbs()
+  const ref = React.useRef<HTMLButtonElement>(null)
+  React.useLayoutEffect(() => (ref.current ? thumbs.register(index, ref.current) : undefined), [thumbs, index])
+  const active = ctx.index === index
+  return useRender({
+    defaultTagName: 'button',
+    render,
+    ref,
+    state: { active },
+    props: mergeProps<'button'>(
+      { type: 'button', 'aria-label': `Show image ${index + 1}`, 'aria-current': active || undefined, onClick: () => ctx.goTo(index) },
+      props,
+    ),
+  })
+}
+
+/** Follows the swipe from thumb to thumb, interpolating position and size. Style it however you like. */
+function ThumbnailIndicator({ render, ...props }: useRender.ComponentProps<'div'>) {
+  const thumbs = useThumbs()
+  const ref = React.useRef<HTMLDivElement>(null)
+  React.useLayoutEffect(() => (ref.current ? thumbs.indicator(ref.current) : undefined), [thumbs])
+  return useRender({
+    defaultTagName: 'div',
+    render,
+    ref,
+    props: mergeProps<'div'>({ 'aria-hidden': true, style: { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' } }, props),
+  })
+}
+
 /** Read lightbox state and drive it from your own UI (counters, captions, thumbnails…). */
 export function useLightbox<T extends LightboxItem = LightboxItem>() {
   const ctx = useCtx()
@@ -1213,6 +1428,8 @@ export function useLightbox<T extends LightboxItem = LightboxItem>() {
     phase: ctx.phase,
     open: ctx.phase !== 'closed',
     zoomed: ctx.zoomed,
+    /** MotionValue of the fractional index in view — drive your own indicators and effects with it. */
+    progress: ctx.progress,
     dragging: ctx.dragging,
     uiHidden: ctx.uiHidden,
     openAt: ctx.openAt,
@@ -1240,4 +1457,7 @@ export const Lightbox = {
   Description: Dialog.Description,
   Prev,
   Next,
+  Thumbnails,
+  Thumbnail,
+  ThumbnailIndicator,
 }

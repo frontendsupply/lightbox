@@ -87,35 +87,23 @@ export function Caption({ className }: { className?: string }) {
   )
 }
 
+/** Thumbs keep their aspect ratio; the ring glides between them as you swipe, resizing on the way. */
 export function Thumbnails() {
-  const { items, index, goTo } = useLightbox<LightboxItem & { thumb?: string }>()
-  const ref = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    const strip = ref.current
-    const thumb = strip?.children[index] as HTMLElement | undefined
-    if (strip && thumb) strip.scrollTo({ left: thumb.offsetLeft - (strip.clientWidth - thumb.offsetWidth) / 2, behavior: 'smooth' })
-  }, [index])
+  const { items } = useLightbox<LightboxItem & { thumb?: string }>()
   return (
-    <div
-      ref={ref}
-      className="pointer-events-auto absolute inset-x-0 bottom-0 flex gap-1.5 overflow-x-auto px-[50%] pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] [scrollbar-width:none]"
-    >
+    <Lightbox.Thumbnails className="pointer-events-auto absolute inset-x-0 bottom-0 flex items-center gap-2 px-[50%] pt-4 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
       {items.map((item, i) => (
-        <button
+        <Lightbox.Thumbnail
           key={item.src}
-          type="button"
-          aria-label={`Show image ${i + 1}`}
-          aria-current={i === index}
-          onClick={() => goTo(i)}
-          className={cn(
-            'h-12 w-9 shrink-0 overflow-hidden rounded-md opacity-40 transition-all duration-300 outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white',
-            i === index && 'w-16 opacity-100',
-          )}
+          index={i}
+          className="h-11 shrink-0 overflow-hidden rounded-[5px] opacity-45 transition-opacity duration-300 outline-none hover:opacity-80 focus-visible:opacity-100 data-active:opacity-100"
+          style={{ aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : undefined }}
         >
           <img src={item.thumb ?? item.src} alt="" className="size-full object-cover" draggable={false} />
-        </button>
+        </Lightbox.Thumbnail>
       ))}
-    </div>
+      <Lightbox.ThumbnailIndicator className="rounded-[5px] outline-2 outline-offset-2 outline-white" />
+    </Lightbox.Thumbnails>
   )
 }
 

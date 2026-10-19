@@ -78,6 +78,26 @@ loads, the trigger's thumbnail is shown in its place.
 
 Buttons and labels. `Prev` / `Next` disable themselves at the ends.
 
+## Thumbnails, Thumbnail, ThumbnailIndicator
+
+A thumbnail strip whose indicator travels *with* the swipe: halfway through a swipe it sits halfway between two thumbs,
+interpolating both position and size (thumbs may have different widths). The strip glides to keep it centred.
+
+```tsx
+<Lightbox.Thumbnails className="flex gap-2 px-[50%]">
+  {items.map((item, i) => (
+    <Lightbox.Thumbnail key={item.src} index={i} className="h-11 opacity-50 data-active:opacity-100">
+      <img src={item.thumb} alt="" className="size-full object-cover" />
+    </Lightbox.Thumbnail>
+  ))}
+  <Lightbox.ThumbnailIndicator className="rounded-md outline-2 outline-offset-2 outline-white" />
+</Lightbox.Thumbnails>
+```
+
+`Thumbnails` is the scroll container (any positioning works); `Thumbnail` is a button that goes to `index` and gets
+`data-active` / `aria-current`; `ThumbnailIndicator` is absolutely positioned and sized over the thumbs every frame —
+give it any look: a ring, an underline, a glow.
+
 ## useLightbox()
 
 Call it anywhere inside `Root` to build your own UI.
@@ -86,7 +106,11 @@ Call it anywhere inside `Root` to build your own UI.
 const {
   items, item, index, count,       // data
   phase, open, zoomed, dragging, uiHidden, // state
+  progress,                        // MotionValue: fractional index in view (2.5 = halfway from 3rd to 4th)
   openAt, close, goTo, next, prev, // navigation
   zoomIn, zoomOut, resetZoom,      // zoom
 } = useLightbox<MyItem>()
 ```
+
+`progress` updates every frame of a swipe, drag or glide, so you can build your own dots, progress bars or parallax
+with Motion's `useTransform` without re-rendering.

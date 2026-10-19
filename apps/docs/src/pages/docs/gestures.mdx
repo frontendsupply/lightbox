@@ -16,7 +16,8 @@ description: "The canonical interaction rules. Every input method gets the behav
 | **Tap / click backdrop** | Close (`closeOnBackdropClick`) | Close |
 | **Mouse drag ← →** | Next / previous | Pan |
 | **Mouse drag ↑ ↓** | Pull to dismiss | Pan |
-| **Trackpad two-finger swipe ← →** | Next / previous, native momentum | Pan |
+| **Trackpad two-finger swipe ← →** | Follows your fingers; a flick or 30% of the width turns one page | Pan |
+| **Horizontal mouse wheel** | One notch, one page | Pan |
 | **Wheel / two-finger scroll ↑ ↓** | — (or zoom with `wheelToZoom`) | Pan (or zoom with `wheelToZoom`) |
 | **Ctrl / ⌘ + wheel** | Zoom around the cursor | Zoom around the cursor |
 | **← →** | Previous / next | Previous / next |
@@ -25,9 +26,13 @@ description: "The canonical interaction rules. Every input method gets the behav
 
 ## Why it feels native
 
-- **Swiping is real scrolling.** The viewport is a CSS `scroll-snap` container, so momentum, overscroll and trackpad
-  physics come from the OS — not from an approximation in JavaScript. Idle slides use `touch-action: pan-x`, which hands
-  horizontal drags to the browser and gives us vertical ones for free: direction locking without heuristics.
+- **Swiping is real scrolling.** The viewport is a CSS `scroll-snap` container, so touch swipes get the OS's own
+  momentum and overscroll. Idle slides use `touch-action: pan-x`, which hands horizontal drags to the browser and gives us
+  vertical ones for free: direction locking without heuristics.
+- **Trackpads turn one page per swipe.** Native snapping picks the target from where a swipe *plus its momentum* would
+  stop, so ordinary swipes snap back. Instead the viewer follows the fingers 1:1, commits as soon as the intent is clear
+  (a flick, or 30% of the width), springs the rest of the way with your velocity, and swallows the leftover momentum.
+  A new swipe is recognised by a pause, a reversal, or the deltas picking up again.
 - **Everything is interruptible.** Grab a photo mid-flight and it stops under your finger. Close while it's still opening
   and it reverses from wherever it is. Every animation starts from the image's *current* visual state.
 - **Velocity carries over.** A flick to dismiss feeds its speed into the spring that flies the photo home. Panning ends in
