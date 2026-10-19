@@ -1,0 +1,74 @@
+---
+layout: ../../layouts/Docs.astro
+title: "API reference"
+description: "Every part, prop and hook. Parts accept all props of their underlying element, plus Base UI's render prop."
+---
+
+```tsx
+import { Lightbox, useLightbox } from '@frontendsupply/lightbox'
+```
+
+## Root
+
+Holds state. Renders no element.
+
+| Prop | Type | Default | |
+| --- | --- | --- | --- |
+| `items` | `LightboxItem[]` | — | `{ src, alt?, width?, height?, srcSet?, sizes? }` plus any fields you like |
+| `maxZoom` | `number` | `4` | Relative to the fitted size. `1` disables zoom |
+| `wheelToZoom` | `boolean` | `false` | Plain wheel zooms instead of panning. Ctrl/⌘ + wheel and pinch always zoom |
+| `closeOnBackdropClick` | `boolean` | `true` | |
+| `scrollTriggerIntoView` | `'smooth' \| 'instant' \| false` | `'smooth'` | Keep the current item's trigger in view behind the viewer |
+| `transition` | Motion `Transition` | spring | The open / close morph |
+| `onOpenChange` | `(open: boolean) => void` | | |
+| `onIndexChange` | `(index: number) => void` | | |
+
+## Trigger
+
+A `<button>` that opens the viewer at `index`. Its first `<img>` is the morph source; its own box and radius are the clip.
+Several triggers may share an index (e.g. a hero grid and an all-photos grid); the visible one wins.
+
+| Prop | Type | |
+| --- | --- | --- |
+| `index` | `number` | Item to open |
+| `render` | `ReactElement \| (props, state) => ReactElement` | Render as another element, e.g. `<a />` |
+
+## Portal, Backdrop, Popup
+
+[Base UI Dialog](https://base-ui.com/react/components/dialog) parts. `Popup` traps focus, locks page scroll, closes on
+`Esc`, returns focus to the current item's trigger and handles the keyboard shortcuts. `Backdrop` and `Popup` get
+`--lightbox-presence`; `Backdrop`'s opacity follows it.
+
+## Viewport
+
+The horizontal scroll-snap scroller. With no children it renders `<Slide><Image /></Slide>` for every item.
+
+## Slide
+
+| Prop | Type | |
+| --- | --- | --- |
+| `index` | `number` | Item shown in this slide |
+
+Only slides within two of the current index render their children. Non-current slides are `inert`.
+
+## Image
+
+The morph and zoom target. Defaults `src`, `alt`, `srcSet` and `sizes` from the slide's item; any `<img>` prop works.
+While the full image loads, the trigger's thumbnail is shown in its place.
+
+## Close, Prev, Next, Title, Description
+
+Buttons and labels. `Prev` / `Next` disable themselves at the ends.
+
+## useLightbox()
+
+Call it anywhere inside `Root` to build your own UI.
+
+```ts
+const {
+  items, item, index, count,       // data
+  phase, open, zoomed, dragging, uiHidden, // state
+  openAt, close, goTo, next, prev, // navigation
+  zoomIn, zoomOut, resetZoom,      // zoom
+} = useLightbox<MyItem>()
+```

@@ -1,0 +1,13 @@
+---
+layout: ../../../layouts/Docs.astro
+title: "Stories"
+description: "Round avatars morph into 9:16 cards. The cube page-turn between stories is pure CSS — a scroll-driven animation on each slide. Zoom is off; pull down to dismiss."
+---
+import { Code } from 'astro:components'
+import Demo from '../../../components/Demo.astro'
+import Stories from '../../../components/demos/Stories.tsx'
+import source from '../../../components/demos/Stories.tsx?raw'
+
+<Demo><Stories client:load /></Demo>
+
+<Code code={source} lang="tsx" />

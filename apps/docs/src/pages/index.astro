@@ -1,0 +1,43 @@
+---
+import Base from '../layouts/Base.astro'
+import Header from '../components/Header.astro'
+import Hero from '../components/demos/Hero.tsx'
+
+const features = [
+  ['Morph, not fade', 'The thumbnail grows into the photo and un-crops on the way. Rounded corners, object-fit and object-position included.'],
+  ['Real scroll physics', 'Swiping is a native scroll-snap scroller, so touch and trackpad get the OS’s own momentum.'],
+  ['Pinch, wheel, double-tap', 'Zoom follows your fingers, rubber-bands at the limits, and pans with inertia.'],
+  ['Pull to dismiss', 'Drag the photo away; the backdrop fades with you and a flick carries its velocity home.'],
+  ['The page keeps up', 'Navigate inside the viewer and the page behind scrolls along, so closing lands on the right thumbnail.'],
+  ['Zero opinions', 'No CSS ships. Style every part with Tailwind, CSS modules or anything else, via data attributes and a CSS variable.'],
+]
+---
+<Base>
+  <Header />
+  <main class="mx-auto max-w-6xl px-4 sm:px-6">
+    <section class="grid gap-12 py-16 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:py-24">
+      <div>
+        <p class="mb-4 text-sm font-medium text-neutral-500">@frontendsupply/lightbox</p>
+        <h1 class="text-5xl font-semibold tracking-tight text-balance sm:text-6xl">Everything a lightbox should do.</h1>
+        <p class="mt-5 max-w-md text-lg text-neutral-600 dark:text-neutral-400">
+          Native-feeling interactions and zero opinions about your design. A headless React image viewer built on Base UI and Motion.
+        </p>
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <a href="/docs" class="rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white dark:bg-white dark:text-neutral-900">Get started</a>
+          <code class="rounded-full border border-neutral-200 px-4 py-2.5 font-mono text-sm dark:border-neutral-800">pnpm add @frontendsupply/lightbox</code>
+        </div>
+        <p class="mt-8 text-sm text-neutral-500">Click any image. Swipe, pinch or scroll to zoom, pull to dismiss.</p>
+      </div>
+      <Hero client:load />
+    </section>
+
+    <section class="grid gap-x-10 gap-y-8 border-t border-neutral-200 py-16 sm:grid-cols-2 lg:grid-cols-3 dark:border-neutral-800">
+      {features.map(([title, body]) => (
+        <div>
+          <h2 class="font-semibold">{title}</h2>
+          <p class="mt-1.5 text-[15px] text-neutral-600 dark:text-neutral-400">{body}</p>
+        </div>
+      ))}
+    </section>
+  </main>
+</Base>

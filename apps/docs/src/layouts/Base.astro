@@ -1,0 +1,21 @@
+---
+import '../styles/global.css'
+interface Props { title?: string; description?: string }
+const { title, description = 'A headless React lightbox with native-feeling gestures. Built on Base UI and Motion.' } = Astro.props
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono&display=swap" rel="stylesheet" />
+    <title>{title ? `${title} — Lightbox` : 'Lightbox — native-feeling image viewer for React'}</title>
+    <meta name="description" content={description} />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

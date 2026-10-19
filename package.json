@@ -1,0 +1,12 @@
+{
+  "name": "lightbox-monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter docs dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @frontendsupply/lightbox test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "packageManager": "pnpm@11.23.0"
+}

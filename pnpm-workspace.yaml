@@ -1,0 +1,11 @@
+packages:
+  - packages/*
+  - apps/*
+minimumReleaseAgeExclude:
+  - astro@7.4.1
+  - framer-motion@14.4.0
+  - motion-dom@14.4.0
+  - motion@14.4.0
+onlyBuiltDependencies:
+  - esbuild
+  - sharp

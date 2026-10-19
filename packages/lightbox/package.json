@@ -1,0 +1,57 @@
+{
+  "name": "@frontendsupply/lightbox",
+  "version": "0.1.0",
+  "description": "Headless React lightbox with native-feeling gestures. Built on Base UI and Motion.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": "./src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/frontendsupply/lightbox.git",
+    "directory": "packages/lightbox"
+  },
+  "keywords": [
+    "react",
+    "lightbox",
+    "image-viewer",
+    "gallery",
+    "zoom",
+    "pinch",
+    "headless",
+    "base-ui",
+    "motion"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/*.test.ts"
+  },
+  "peerDependencies": {
+    "@base-ui/react": "^1.9.0",
+    "motion": ">=12",
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "devDependencies": {
+    "@base-ui/react": "^1.9.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "motion": "^14.4.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^6.0.3",
+    "@types/node": "^24.0.0"
+  }
+}

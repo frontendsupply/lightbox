@@ -1,0 +1,65 @@
+---
+layout: ../../layouts/Docs.astro
+title: "Getting started"
+description: "A headless React lightbox with native-feeling gestures. Built on Base UI and Motion. Ships no CSS."
+---
+import { Code } from 'astro:components'
+import Demo from '../../components/Demo.astro'
+import Basic from '../../components/demos/Basic.tsx'
+import basicSource from '../../components/demos/Basic.tsx?raw'
+
+## Install
+
+```bash
+pnpm add @frontendsupply/lightbox @base-ui/react motion
+```
+
+`react` and `react-dom` 19+ are peer dependencies too.
+
+## Your first lightbox
+
+Give `Root` your items, wrap each thumbnail in a `Trigger`, and render the overlay. `Viewport` without children renders one
+zoomable slide per item.
+
+<Demo><Basic client:load /></Demo>
+
+<Code code={basicSource} lang="tsx" />
+
+That's the whole API surface for the common case. Everything else — counters, captions, thumbnails, arrows — is your own UI
+reading `useLightbox()`.
+
+## Anatomy
+
+```tsx
+<Lightbox.Root items={items}>
+  <Lightbox.Trigger index={0} />           {/* as many as you like, several per index is fine */}
+
+  <Lightbox.Portal>
+    <Lightbox.Backdrop />
+    <Lightbox.Popup>
+      <Lightbox.Viewport>                   {/* native scroll-snap scroller */}
+        <Lightbox.Slide index={0}>          {/* padding here = breathing room around the image */}
+          <Lightbox.Image />                {/* the morph + zoom target */}
+        </Lightbox.Slide>
+      </Lightbox.Viewport>
+      <Lightbox.Close />
+      <Lightbox.Prev />
+      <Lightbox.Next />
+    </Lightbox.Popup>
+  </Lightbox.Portal>
+</Lightbox.Root>
+```
+
+`Portal`, `Backdrop`, `Popup`, `Close`, `Title` and `Description` are [Base UI Dialog](https://base-ui.com/react/components/dialog)
+parts, so you get focus trapping, scroll locking, `Esc` to close and focus return for free.
+
+## Tips
+
+- **Pass `width` and `height`** on items when you know them. The viewer can then lay out before the full image loads. Without
+  them it falls back to the thumbnail's natural size.
+- **Thumbnails are placeholders.** While the full image downloads, the viewer shows the trigger's `<img>` — already in cache — in
+  its place, so the morph never shows an empty box.
+- **The morph reads your CSS.** `object-fit`, `object-position` and `border-radius` of the thumbnail are measured at open and
+  close time. Change them freely.
+- **Next steps:** [Gestures](/docs/gestures), [Styling](/docs/styling), the [API reference](/docs/api), or steal an example:
+  [Feed](/docs/examples/feed), [Listing](/docs/examples/listing), [Stories](/docs/examples/stories).

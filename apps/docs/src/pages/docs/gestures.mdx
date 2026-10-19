@@ -1,0 +1,38 @@
+---
+layout: ../../layouts/Docs.astro
+title: "Gestures"
+description: "The canonical interaction rules. Every input method gets the behaviour its platform taught you."
+---
+
+## Rules
+
+| Input | Not zoomed | Zoomed |
+| --- | --- | --- |
+| **Touch swipe ← →** | Next / previous, native scroll momentum | Pan (with inertia and rubber-band edges) |
+| **Touch swipe ↑ ↓** | Pull to dismiss | Pan |
+| **Pinch** (touch, trackpad) | Zoom around the fingers; pinch below fit and release to close | Zoom; settles back into 1×–`maxZoom` |
+| **Double tap / double click** | Zoom to the point (≥ 2×, or enough to fill the screen) | Back to fit |
+| **Tap image** (touch) | Toggle `data-ui-hidden` | Toggle `data-ui-hidden` |
+| **Tap / click backdrop** | Close (`closeOnBackdropClick`) | Close |
+| **Mouse drag ← →** | Next / previous | Pan |
+| **Mouse drag ↑ ↓** | Pull to dismiss | Pan |
+| **Trackpad two-finger swipe ← →** | Next / previous, native momentum | Pan |
+| **Wheel / two-finger scroll ↑ ↓** | — (or zoom with `wheelToZoom`) | Pan (or zoom with `wheelToZoom`) |
+| **Ctrl / ⌘ + wheel** | Zoom around the cursor | Zoom around the cursor |
+| **← →** | Previous / next | Previous / next |
+| **+ − 0** | Zoom in / out / reset | Zoom in / out / reset |
+| **Esc** | Close | Close |
+
+## Why it feels native
+
+- **Swiping is real scrolling.** The viewport is a CSS `scroll-snap` container, so momentum, overscroll and trackpad
+  physics come from the OS — not from an approximation in JavaScript. Idle slides use `touch-action: pan-x`, which hands
+  horizontal drags to the browser and gives us vertical ones for free: direction locking without heuristics.
+- **Everything is interruptible.** Grab a photo mid-flight and it stops under your finger. Close while it's still opening
+  and it reverses from wherever it is. Every animation starts from the image's *current* visual state.
+- **Velocity carries over.** A flick to dismiss feeds its speed into the spring that flies the photo home. Panning ends in
+  inertia that bounces off the edges.
+- **Rubber bands, not walls.** Over-zooming and over-panning resist progressively (the iOS curve), then settle.
+- **The page keeps up.** As you navigate, the page behind the viewer scrolls the current thumbnail into view
+  (`scrollTriggerIntoView`). When you close, the photo always has somewhere visible to land; if it doesn't, it fades.
+- **Reduced motion is respected.** With `prefers-reduced-motion`, morphs become short fades.

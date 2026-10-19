@@ -1,0 +1,68 @@
+---
+layout: ../../layouts/Docs.astro
+title: "Styling"
+description: "The package ships zero CSS. Style every part with whatever you already use. These docs use Tailwind v4 and cn."
+---
+import { Code } from 'astro:components'
+import recipe from '../../components/lightbox.tsx?raw'
+
+## What the library sets
+
+Only what the mechanics need, as inline styles you can override: the popup and backdrop are `position: fixed; inset: 0`,
+the viewport is a horizontal `scroll-snap` flex row, slides are `flex: 0 0 100%`, and the image is absolutely positioned
+inside its slide. Everything else — colours, spacing, z-index, chrome — is yours.
+
+- **Slide padding is the image's breathing room.** The image is fitted (`contain`) inside the slide's content box.
+  `className="sm:p-16"` on `Slide` gives desktop margins while phones stay edge to edge.
+- **Viewport `gap`** spaces the slides while swiping.
+- **`border-radius` on `Image`** is honoured, and morphs from the thumbnail's radius.
+- **Stacking.** The overlay is portalled to `<body>`; give `Backdrop` and `Popup` a `z-index` if your page has sticky headers.
+
+## State
+
+| Attribute | On | Meaning |
+| --- | --- | --- |
+| `data-phase` | Popup | `opening` · `open` · `closing` |
+| `data-zoomed` | Popup, Viewport | The current image is zoomed in |
+| `data-dragging` | Popup | Pull-to-dismiss in progress |
+| `data-ui-hidden` | Popup | User tapped the image to hide chrome |
+| `data-current` | Slide | The slide in view |
+| `data-active` | Trigger | Its item is open (the trigger is hidden while open) |
+| `data-loaded` | Image | The full image has loaded |
+| `data-disabled` | Prev, Next | At the first / last item |
+| `--lightbox-presence` | Popup, Backdrop | `0 → 1` as the viewer opens; follows pull-to-dismiss and pinch-to-close |
+
+`--lightbox-presence` is what makes chrome feel attached to the photo: anything that should fade with the backdrop reads it.
+
+```tsx
+<div className="opacity-(--lightbox-presence)">…</div>
+<div className="transition-opacity group-data-dragging:opacity-0 group-data-ui-hidden:opacity-0">…</div>
+```
+
+## Scroll-driven effects
+
+Slides are plain elements in a real scroller, so CSS [scroll-driven animations](https://developer.mozilla.org/docs/Web/CSS/CSS_scroll-driven_animations)
+work on them with no JavaScript. The [Stories](/docs/examples/stories) cube is just this:
+
+```css
+.story-slide {
+  animation: story-turn linear both, story-origin steps(1, end) both;
+  animation-timeline: view(inline), view(inline);
+}
+@keyframes story-turn {
+  0% { transform: perspective(1400px) rotateY(80deg); }
+  50% { transform: none; }
+  100% { transform: perspective(1400px) rotateY(-80deg); }
+}
+@keyframes story-origin {
+  0% { transform-origin: 0% 50%; }
+  50%, 100% { transform-origin: 100% 50%; }
+}
+```
+
+## A styled recipe
+
+The demos on this site use one file built with Tailwind v4 and [`cn`](https://github.com/shadcn-ui/cn). Copy it into your
+project and make it yours.
+
+<Code code={recipe} lang="tsx" />

@@ -1,0 +1,13 @@
+---
+layout: ../../../layouts/Docs.astro
+title: "Listing"
+description: "A property page: hero grid, an all-photos grid, and a viewer with a thumbnail strip. Navigate in the viewer and watch the page scroll behind it."
+---
+import { Code } from 'astro:components'
+import Demo from '../../../components/Demo.astro'
+import Listing from '../../../components/demos/Listing.tsx'
+import source from '../../../components/demos/Listing.tsx?raw'
+
+<Demo><Listing client:load /></Demo>
+
+<Code code={source} lang="tsx" />
