@@ -1,75 +1,82 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createWheelPager } from './wheel.ts'
+import { createWheelPager, type WheelStep } from './wheel.ts'
 
-const W = 1200
-/** Feed deltas 16ms apart starting at t0; returns every step. */
-const feed = (pager: ReturnType<typeof createWheelPager>, deltas: number[], t0 = 0, discrete = false) =>
-  deltas.map((d, i) => pager.wheel(d, t0 + i * 16, discrete))
-const commits = (steps: { type: string }[]) => steps.filter((s) => s.type === 'commit').length
+// Sequences recorded from a real MacBook trackpad (Chromium, natural scrolling), ~16ms apart.
+const REAL = {
+  lightForward: [5, 8, 10, 9, 8, 7, 6, 6, 5, 4, 3, 2, 1, 1, 1],
+  slowBackward: [-1, -3, -6, -7, -8, -11, -10, -9, -10, -9, -8, -8, -11, -12, -12, -12, -12, -11, -12, -12, -11, -10, -9, -8, -8, -7, -6, -6, -5, -5, -5, -4, -4, -4, -3, -3, -3, -3, -2, -2, -2, -2, -1, -1, -1, -1, -1, -1, -1],
+  slowForwardWithPause: [1, 2, 5, 8, 8, 7, 5, 6, 5, 4, 4, 4, 5, 5, 7, 8, 8, 6, 5, 4, 3, 3, 3, 3, 3, 2, 3, 6, 9, 13, 16, 17, 13, 12, 8, 13, 14, 15, 15, 15, 14, 16, 16, 14, 13, 12, 11, 10, 9, 8, 8, 7, 6, 6, 5, 5, 5, 4, 4, 4, 3, 3, 3, 3, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1],
+  quickFlickBackward: [-3, -7, -19, -20, -22, -30, -33, -34, -34, -34, -33, -36, -35, -32, -29, -26, -24, -22, -20, -18, -17, -15, -14, -13, -12, -11, -10, -9],
+  twoFastSwipes: [
+    3, 1, 4, 13, 29, 37, 40, 42, 47, 48, 41, 39, 42, 65, 75, 76, 75, 72, 70, 72, 68, 64, 60, 56, 53, 49, 45, 41, 38, 35, 32, 30, 27, 24, 22, 20, 19, 17, 16, 14, 13, 12, 11, 10, 9, 8, 8, 7, 7, 6, 6, 5, 5, 5, 4, 4, 4, 3,
+    6, 1, 1, 10, 22, 37, 41, 41, 49, 45, 46, 48, 42, 76, 85, 87, 85, 82, 79, 80, 77, 72, 66, 62, 58, 55, 51, 47, 43, 40, 37, 34, 31, 28, 26, 24, 22, 20, 19, 17, 16, 14, 13, 12, 11, 10, 9, 8, 8, 7, 6, 6, 5, 5, 5, 4, 4, 4, 3,
+  ],
+}
+const W = 425
 
-// macOS-like: fingers ramp up then lift, then a long decaying momentum tail
-const swipe = [2, 5, 10, 18, 25, 30, 28, 20, 15, 10]
-const momentum = [12, 10, 9, 8, 7, 6, 5, 4, 4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
+function play(deltas: number[], { t0 = 0, discrete = false, pager = createWheelPager(() => W) } = {}) {
+  const steps: WheelStep[] = deltas.map((d, i) => pager.wheel(d, t0 + i * 16, discrete))
+  const tail = pager.end() // the wheel goes quiet afterwards
+  if (tail) steps.push(tail)
+  const releases = steps.filter((s): s is Extract<WheelStep, { type: 'release' }> => s.type === 'release')
+  return { steps, releases, pager }
+}
 
-test('one swipe with momentum turns exactly one page', () => {
-  const p = createWheelPager(() => W)
-  const steps = feed(p, [...swipe, ...momentum])
-  assert.equal(commits(steps), 1)
-  const c = steps.find((s) => s.type === 'commit')
-  assert.ok(c && c.type === 'commit' && c.dir === 1 && c.velocity > 0)
-  // everything after the commit is swallowed
-  assert.ok(steps.slice(steps.indexOf(c) + 1).every((s) => s.type === 'ignore'))
+test('a light forward swipe turns the page instead of snapping back', () => {
+  const { releases } = play(REAL.lightForward)
+  assert.deepEqual(releases.map((r) => r.dir), [1])
+  assert.ok(releases[0]!.velocity > 0)
 })
 
-test('fingers are followed 1:1 before the commit', () => {
-  const p = createWheelPager(() => W)
-  assert.deepEqual(feed(p, [2, 3, 4]), [
-    { type: 'follow', offset: 2 },
+test('a slow backward swipe goes back exactly one page', () => {
+  assert.deepEqual(play(REAL.slowBackward).releases.map((r) => r.dir), [-1])
+})
+
+test('a slow forward swipe with a hesitation in the middle is still one page', () => {
+  assert.deepEqual(play(REAL.slowForwardWithPause).releases.map((r) => r.dir), [1])
+})
+
+test('a quick flick is one page', () => {
+  assert.deepEqual(play(REAL.quickFlickBackward).releases.map((r) => r.dir), [-1])
+})
+
+test('two fast swipes in a row are two pages, momentum in between is swallowed', () => {
+  assert.deepEqual(play(REAL.twoFastSwipes).releases.map((r) => r.dir), [1, 1])
+})
+
+test('content follows the fingers 1:1 until lift-off', () => {
+  const { steps } = play(REAL.lightForward)
+  assert.deepEqual(steps.slice(0, 3), [
     { type: 'follow', offset: 5 },
-    { type: 'follow', offset: 9 },
+    { type: 'follow', offset: 13 },
+    { type: 'follow', offset: 23 },
   ])
+  // after the release the momentum tail never moves anything
+  const at = steps.findIndex((s) => s.type === 'release')
+  assert.ok(steps.slice(at + 1).every((s) => s.type === 'ignore'))
 })
 
-test('a slow short swipe does not commit and settles back', () => {
-  const p = createWheelPager(() => W)
-  assert.equal(commits(feed(p, [2, 3, 3, 4, 3, 2])), 0)
-  assert.equal(p.end(), true)
-  assert.equal(p.busy, false)
+test('a slow drag lifted while still goes forward', () => {
+  assert.deepEqual(play(Array(30).fill(4)).releases.map((r) => r.dir), [1])
 })
 
-test('a slow drag commits once it passes 30% of the width', () => {
-  const p = createWheelPager(() => W)
-  const steps = feed(p, Array(40).fill(-10)) // 0.6px/ms: never a flick
-  const at = steps.findIndex((s) => s.type === 'commit')
-  assert.equal(at, 36) // 37 × 10 = 370 > 360
-  assert.deepEqual(steps[at], { type: 'commit', dir: -1, velocity: -625 })
+test('a tiny nudge settles back', () => {
+  assert.deepEqual(play([2, 3, 3, 4, 3, 2]).releases.map((r) => r.dir), [0])
 })
 
-test('two swipes in a row turn two pages', () => {
-  const p = createWheelPager(() => W)
-  const first = feed(p, [...swipe, ...momentum.slice(0, 8)])
-  // fingers land again: momentum stops, a fresh ramp starts 300ms after the first commit
-  const second = feed(p, swipe, 16 * first.length + 120)
-  assert.equal(commits(first) + commits(second), 2)
+test('pulling back before lifting cancels', () => {
+  assert.deepEqual(play([...Array(15).fill(10), ...Array(10).fill(-8)]).releases.map((r) => r.dir), [0])
 })
 
-test('a quiet gap ends the momentum lock', () => {
-  const p = createWheelPager(() => W)
-  feed(p, swipe)
-  assert.equal(commits(feed(p, swipe, 1000)), 1)
-})
-
-test('reversing during the tail starts a new gesture the other way', () => {
-  const p = createWheelPager(() => W)
-  feed(p, [...swipe, 12, 10])
-  const back = feed(p, [-5, -10, -20, -30, -30], 16 * 13)
-  const c = back.find((s) => s.type === 'commit')
-  assert.ok(c && c.type === 'commit' && c.dir === -1)
+test('the same swipes behave the same on a wide screen', () => {
+  const wide = () => createWheelPager(() => 1440)
+  assert.deepEqual(play(REAL.lightForward, { pager: wide() }).releases.map((r) => r.dir), [1])
+  assert.deepEqual(play(REAL.slowBackward, { pager: wide() }).releases.map((r) => r.dir), [-1])
+  assert.deepEqual(play([2, 3, 3, 4, 3, 2], { pager: wide() }).releases.map((r) => r.dir), [0])
 })
 
 test('a mouse wheel notch is one page', () => {
-  const p = createWheelPager(() => W)
-  const [step] = feed(p, [100], 0, true)
-  assert.deepEqual(step, { type: 'commit', dir: 1, velocity: 0 })
+  assert.deepEqual(play([100], { discrete: true }).releases.map((r) => r.dir), [1])
+  assert.deepEqual(play([-120]).releases.map((r) => r.dir), [-1])
 })

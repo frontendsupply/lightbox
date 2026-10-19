@@ -1,23 +1,49 @@
 /**
- * Turns a stream of horizontal wheel deltas (trackpad swipes, mouse wheels) into page turns.
+ * Turns horizontal wheel deltas (trackpad swipes, mouse wheels) into page turns that feel like Photos.
  *
- * Native scroll-snap decides from where the gesture *plus momentum* would stop, so ordinary trackpad
- * swipes fall short of halfway and snap back. This follows the fingers 1:1, commits as soon as the
- * swipe is clearly meant (distance or a flick), then swallows that gesture's momentum tail so one
- * swipe is one page. A new swipe is told apart from the tail by a quiet gap, a reversal, or deltas
- * rising again after they had decayed.
+ * Browsers don't say when fingers leave a trackpad; after lift-off macOS keeps sending "momentum"
+ * deltas. Waiting for those to die out (what scroll-snap and most carousels do) makes a light swipe
+ * land short and snap back, and the viewer seems to hang after release. Instead:
+ *
+ * - follow the fingers 1:1 for the whole swipe;
+ * - spot lift-off from the momentum signature — macOS decays it by a steady ~8% per frame, while
+ *   fingers are noisy — or from the deltas stopping;
+ * - decide from where the content is *and* how fast it was moving at lift-off, then swallow the rest
+ *   of the momentum so one swipe is one page. A new swipe is told apart from the tail by a pause, a
+ *   reversal, or deltas rising again.
  */
 export type WheelStep =
   | { type: 'follow'; offset: number } // move content to gesture start + offset
-  | { type: 'commit'; dir: 1 | -1; velocity: number } // turn the page; velocity in px/s
-  | { type: 'ignore' } // momentum of a gesture already committed
+  | { type: 'release'; dir: -1 | 0 | 1; velocity: number } // settle: next/prev/back; velocity in px/s
+  | { type: 'ignore' } // momentum of a gesture already released
+
+type Sample = { t: number; d: number }
+
+/** Four strictly decaying deltas with momentum-like ratios. */
+function isMomentum(s: Sample[]) {
+  if (s.length < 4) return false
+  const [a, b, c, d] = s.slice(-4).map((x) => x.d) as [number, number, number, number]
+  if (Math.sign(a) !== Math.sign(d) || Math.abs(a) < 6) return false
+  const ok = (x: number, y: number) => {
+    const r = Math.abs(y) / Math.abs(x)
+    return r >= 0.84 && r < 0.985
+  }
+  return ok(a, b) && ok(b, c) && ok(c, d)
+}
 
 export function createWheelPager(size: () => number) {
-  let gesture: { acc: number; samples: { t: number; d: number }[] } | null = null
+  let gesture: { acc: number; samples: Sample[] } | null = null
   let lock: { dir: number; last: number; since: number; min: number } | null = null
 
+  // Project where the swipe was heading: a light swipe forward means forward.
+  const decide = (acc: number, v: number): -1 | 0 | 1 => {
+    const projected = acc + v * 250
+    // Finger travel doesn't grow with the screen, so the threshold is capped in pixels.
+    return Math.abs(projected) > Math.min(size() * 0.18, 120) ? (Math.sign(projected) as -1 | 1) : 0
+  }
+
   return {
-    /** Mid-gesture or still swallowing a momentum tail: every wheel event is ours. */
+    /** Mid-swipe or still swallowing a momentum tail: every wheel event is ours. */
     get busy() {
       return !!gesture || !!lock
     },
@@ -32,27 +58,38 @@ export function createWheelPager(size: () => number) {
         if (!quiet && !reversed && !rising) return { type: 'ignore' }
         lock = null
       }
+      // Mouse wheels: one notch, one page.
+      if (discrete || (!gesture && Math.abs(d) >= 50)) {
+        gesture = null
+        lock = { dir: Math.sign(d), last: t, since: t, min: Math.abs(d) }
+        return { type: 'release', dir: Math.sign(d) as -1 | 1, velocity: 0 }
+      }
       gesture ??= { acc: 0, samples: [] }
       gesture.acc += d
       gesture.samples.push({ t, d })
-      gesture.samples = gesture.samples.filter((s) => t - s.t <= 60)
-      // px/ms: the deltas that arrived after the oldest sample, over the time they took
-      const [first, ...rest] = gesture.samples
-      const v = rest.length ? rest.reduce((sum, s) => sum + s.d, 0) / Math.max(1, t - first!.t) : d / 16
-      const { acc } = gesture
-      if (discrete || Math.abs(acc) > size() * 0.3 || (Math.abs(v) > 1.2 && Math.abs(acc) > 20)) {
-        const dir = (Math.sign(acc) || Math.sign(d) || 1) as 1 | -1
+      if (gesture.samples.length > 8) gesture.samples.shift()
+      if (isMomentum(gesture.samples)) {
+        // The first decaying delta is the speed the fingers had when they lifted.
+        const s = gesture.samples
+        const lift = s[s.length - 4]!
+        const prev = s[s.length - 5]
+        const v = lift.d / Math.max(8, prev ? lift.t - prev.t : 16) // px/ms
+        const { acc } = gesture
         gesture = null
-        lock = { dir, last: t, since: t, min: Math.abs(d) }
-        return { type: 'commit', dir, velocity: discrete ? 0 : v * 1000 }
+        lock = { dir: Math.sign(d), last: t, since: t, min: Math.abs(d) }
+        return { type: 'release', dir: decide(acc, v), velocity: v * 1000 }
       }
-      return { type: 'follow', offset: acc }
+      return { type: 'follow', offset: gesture.acc }
     },
-    /** The wheel went quiet without a commit (too short, too slow): settle back. Returns whether a gesture was open. */
-    end() {
-      const open = !!gesture
+    /** The deltas stopped without momentum: the fingers lifted while (almost) still. */
+    end(): WheelStep | null {
+      if (!gesture) return null
+      const { acc, samples } = gesture
       gesture = null
-      return open
+      // The last few deltas say which way the fingers were last going: pulling back before lifting cancels.
+      const recent = samples.slice(-3)
+      const v = recent.reduce((sum, x) => sum + x.d, 0) / (16 * recent.length)
+      return { type: 'release', dir: decide(acc, v), velocity: 0 }
     },
     reset() {
       gesture = null

@@ -572,12 +572,16 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
       },
     }
 
-    // Trackpad swipes and horizontal mouse wheels: one gesture, one page (see wheel.ts).
-    const settleWheel = () => {
-      if (!pager.end() || wheelFrom === null) return
+    // Trackpad swipes and horizontal mouse wheels: follow the fingers, then one page per swipe (see wheel.ts).
+    const release = (dir: number, velocity: number) => {
+      if (wheelFrom === null) return
       const from = Math.round(wheelFrom / stride())
       wheelFrom = null
-      glide(from)
+      glide(from + dir, velocity)
+    }
+    const settleWheel = () => {
+      const step = pager.end()
+      if (step?.type === 'release') release(step.dir, step.velocity)
     }
     const onWheel = (e: WheelEvent) => {
       // Zoomed images pan and pinches zoom (both handled, and prevented, by <Image>).
@@ -594,13 +598,11 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
       }
       clearTimeout(quiet)
       if (step.type === 'follow') {
-        el.scrollLeft = clamp(wheelFrom + step.offset, 0, maxLeft())
-        quiet = setTimeout(settleWheel, 90)
-      } else {
-        const from = Math.round(wheelFrom / stride())
-        wheelFrom = null
-        glide(from + step.dir, step.velocity)
-      }
+        // 1:1 up to one page either way, then resist: a swipe is one photo however far it goes.
+        const s = stride()
+        el.scrollLeft = clamp(wheelFrom + band(step.offset, -s, s, el.clientWidth), 0, maxLeft())
+        quiet = setTimeout(settleWheel, 110)
+      } else release(step.dir, step.velocity)
     }
     // A finger or a mouse button takes over from any glide in flight.
     const onPointerDown = () => {
