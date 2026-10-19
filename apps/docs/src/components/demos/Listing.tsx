@@ -1,8 +1,8 @@
 import { cn } from 'cn'
 import { Lightbox, useLightbox, Slides, Chrome, Toolbar, Arrows, Thumbnails } from '../lightbox'
-import { landscapes } from '../../data/photos'
+import { mixed } from '../../data/photos'
 
-const photos = landscapes.slice(14, 26).map((p) => ({ ...p, caption: `${p.alt} — The Olive Grove Residence` }))
+const photos = mixed.map((p) => ({ ...p, caption: `${p.alt} — The Olive Grove Residence` }))
 
 function ShowAll() {
   const { openAt } = useLightbox()
@@ -50,10 +50,11 @@ export default function Listing() {
       </p>
 
       <h4 className="mt-10 mb-3 font-semibold">All photos</h4>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {/* Natural shapes here; the hero grid above crops them — the viewer un-crops either way. */}
+      <div className="columns-2 gap-2 sm:columns-3">
         {photos.map((photo, i) => (
-          <Lightbox.Trigger key={photo.src} index={i} className="overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900">
-            <img src={photo.thumb} alt={photo.caption} className="aspect-[4/3] size-full object-cover" />
+          <Lightbox.Trigger key={photo.src} index={i} className="mb-2 block w-full break-inside-avoid overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900">
+            <img src={photo.thumb} alt={photo.caption} width={photo.width} height={photo.height} className="h-auto w-full" />
           </Lightbox.Trigger>
         ))}
       </div>
