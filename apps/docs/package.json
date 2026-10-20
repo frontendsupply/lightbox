@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "typecheck": "astro check"
   },
   "dependencies": {
     "@astrojs/mdx": "^8.1.0",
@@ -21,6 +22,7 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.10",
     "@astrojs/markdown-satteri": "^0.4.4",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

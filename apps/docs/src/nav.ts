@@ -1,5 +1,5 @@
 /** Docs pages in reading order: the sidebar, the Markdown copies and llms.txt all follow it. */
-export const nav = [
+export const nav: { title: string; links: [label: string, href: string][] }[] = [
   { title: 'Guide', links: [
     ['Getting started', '/docs'],
     ['Gestures', '/docs/gestures'],
@@ -11,4 +11,4 @@ export const nav = [
     ['Listing', '/docs/examples/listing'],
     ['Stories', '/docs/examples/stories'],
   ] },
-] as const
+]

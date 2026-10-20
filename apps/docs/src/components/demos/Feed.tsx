@@ -15,7 +15,7 @@ function Media({ photos }: { photos: Photo[] }) {
     <div
       className={cn(
         'mt-3 grid gap-0.5 overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800',
-        n > 1 && 'aspect-[16/10] grid-cols-2',
+        n > 1 && 'aspect-16/10 grid-cols-2',
         n > 2 && 'grid-rows-2',
       )}
     >
@@ -25,7 +25,7 @@ function Media({ photos }: { photos: Photo[] }) {
           index={i}
           className={cn('group relative block overflow-hidden bg-neutral-100 outline-none focus-visible:opacity-80 dark:bg-neutral-900', n === 1 && 'rounded-2xl', n === 3 && i === 0 && 'row-span-2')}
         >
-          <img src={photo.thumb} alt={photo.alt} className={cn('size-full object-cover', n === 1 && 'max-h-[30rem]')} />
+          <img src={photo.thumb} alt={photo.alt} className={cn('size-full object-cover', n === 1 && 'max-h-120')} />
           {i === 3 && n > 4 && (
             <span className="absolute inset-0 grid place-items-center bg-black/45 text-lg font-medium text-white group-data-active:opacity-0">+{n - 4}</span>
           )}
