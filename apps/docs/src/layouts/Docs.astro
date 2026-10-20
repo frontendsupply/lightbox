@@ -1,20 +1,8 @@
 ---
 import type { MarkdownHeading } from 'astro'
 import Base from './Base.astro'
+import { nav } from '../nav'
 const { frontmatter, headings = [] } = Astro.props as { frontmatter: Record<string, string>; headings?: MarkdownHeading[] }
-const nav = [
-  { title: 'Guide', links: [
-    ['Getting started', '/docs'],
-    ['Gestures', '/docs/gestures'],
-    ['Styling', '/docs/styling'],
-    ['API reference', '/docs/api'],
-  ] },
-  { title: 'Examples', links: [
-    ['Feed', '/docs/examples/feed'],
-    ['Listing', '/docs/examples/listing'],
-    ['Stories', '/docs/examples/stories'],
-  ] },
-]
 const path = Astro.url.pathname.replace(/\/$/, '') || '/'
 const sections = headings.filter((h) => h.depth === 2)
 const link = (href: string) => ['transition-colors hover:text-ink', path === href ? 'text-ink' : 'text-muted']
@@ -48,7 +36,10 @@ const link = (href: string) => ['transition-colors hover:text-ink', path === hre
       <a href="/" class="font-medium">Lightbox</a>
       {nav.flatMap((g) => g.links).map(([label, href]) => <a href={href} class:list={link(href)}>{label}</a>)}
     </nav>
-    <h1 class="font-medium">{frontmatter.title}</h1>
+    <div class="flex items-baseline justify-between gap-4">
+      <h1 class="font-medium">{frontmatter.title}</h1>
+      <a href={`${path}.md`} class="shrink-0 text-muted transition-colors hover:text-ink">View as Markdown</a>
+    </div>
     <article class="doc mt-4">
       {frontmatter.description && <p>{frontmatter.description}</p>}
       <slot />
