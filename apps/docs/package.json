@@ -6,7 +6,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "deploy": "astro build && wrangler deploy"
   },
   "dependencies": {
     "@astrojs/mdx": "^8.1.0",
@@ -26,6 +27,7 @@
     "@astrojs/markdown-satteri": "^0.4.4",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "wrangler": "4.151.2"
   }
 }

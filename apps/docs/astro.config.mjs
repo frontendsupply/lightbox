@@ -18,6 +18,7 @@ const externalLinks = {
 }
 
 export default defineConfig({
+  site: 'https://lightbox.frontend.supply',
   devToolbar: { enabled: false },
   integrations: [react(), mdx()],
   vite: { plugins: [tailwindcss()] },

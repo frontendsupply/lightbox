@@ -1,0 +1,8 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "lightbox-docs",
+  "compatibility_date": "2026-10-20",
+  // Static Astro build; no Worker code. Pages live at /docs/gestures (no trailing slash), like the nav links.
+  "assets": { "directory": "./dist", "html_handling": "drop-trailing-slash" },
+  "routes": [{ "pattern": "lightbox.frontend.supply", "custom_domain": true }]
+}

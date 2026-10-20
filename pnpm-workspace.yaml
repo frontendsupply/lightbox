@@ -1,6 +1,9 @@
 packages:
   - packages/*
   - apps/*
+allowBuilds:
+  esbuild: true
+  workerd: true
 minimumReleaseAgeExclude:
   - astro@7.4.1
   - framer-motion@14.4.0
