@@ -1,6 +1,6 @@
 # Lightbox
 
-> Native-feeling interactions. Zero opinions about your design.
+> Native gestures out of the box. The design is entirely up to you.
 
 A headless React image viewer built on [Base UI](https://base-ui.com) and [Motion](https://motion.dev). It ships behaviour
 only — no CSS — so it looks like your product, not like a plugin.

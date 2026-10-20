@@ -182,7 +182,8 @@ export default function Stories() {
 
   return (
     <Lightbox.Root items={items} maxZoom={1} onOpenChange={(open) => open && setFrames(people.map(() => 0))}>
-      <div className="flex gap-4 overflow-x-auto px-1 py-2 scrollbar-none">
+      {/* Bleeds to the demo frame's edges with the padding inside, so avatars scroll right up to the border. */}
+      <div className="-mx-4 flex gap-4 overflow-x-auto px-4 py-2 scrollbar-none sm:-mx-5 sm:px-5">
         {items.map((item, i) => (
           <div key={item.src} className="flex shrink-0 flex-col items-center gap-1.5">
             <span className="rounded-full bg-linear-to-tr from-amber-400 via-rose-500 to-fuchsia-600 p-[2.5px]">

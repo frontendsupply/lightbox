@@ -1,0 +1,59 @@
+<!doctype html>
+<!--
+  The Open Graph card. Edit, then render it to public/og.png at 1200×630:
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --hide-scrollbars --force-device-scale-factor=1 \
+    --window-size=1200,630 --virtual-time-budget=8000 --screenshot=public/og.png og/og.html
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: Geist;
+        src: url('../src/assets/fonts/Geist.woff2') format('woff2');
+        font-weight: 100 900;
+      }
+      * {
+        margin: 0;
+        box-sizing: border-box;
+      }
+      body {
+        display: flex;
+        width: 1200px;
+        height: 630px;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 72px;
+        background: #fdfdfc;
+        color: #111;
+        font-family: Geist, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 28px;
+        font-weight: 500;
+      }
+      .brand img {
+        width: 28px;
+        height: 28px;
+      }
+      h1 {
+        max-width: 900px;
+        font-size: 56px;
+        font-weight: 500;
+        line-height: 1.05;
+        letter-spacing: -0.035em;
+      }
+      h1 span {
+        color: rgb(0 0 0 / 0.4);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="brand"><img src="../public/images/logo.svg" alt="" />Lightbox</div>
+    <h1>Native gestures out of the box.<br /><span>The design is entirely up to you.</span></h1>
+  </body>
+</html>
