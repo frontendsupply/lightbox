@@ -19,7 +19,7 @@ export default function Hero() {
           >
             <img src={photo.thumb} alt={photo.alt} width={photo.width} height={photo.height} className="h-auto w-full" />
             {i === shown - 1 && (
-              <span className="absolute inset-0 grid place-items-center bg-black/45 text-3xl font-semibold text-white group-data-active:opacity-0">
+              <span className="absolute inset-0 grid place-items-center bg-black/45 text-xl font-medium text-white group-data-active:opacity-0">
                 +{photos.length - shown}
               </span>
             )}

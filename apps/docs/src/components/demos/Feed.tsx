@@ -27,7 +27,7 @@ function Media({ photos }: { photos: Photo[] }) {
         >
           <img src={photo.thumb} alt={photo.alt} className={cn('size-full object-cover', n === 1 && 'max-h-[30rem]')} />
           {i === 3 && n > 4 && (
-            <span className="absolute inset-0 grid place-items-center bg-black/45 text-2xl font-semibold text-white group-data-active:opacity-0">+{n - 4}</span>
+            <span className="absolute inset-0 grid place-items-center bg-black/45 text-lg font-medium text-white group-data-active:opacity-0">+{n - 4}</span>
           )}
         </Lightbox.Trigger>
       ))}
@@ -37,13 +37,13 @@ function Media({ photos }: { photos: Photo[] }) {
 
 export default function Feed() {
   return (
-    <div className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+    <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
       {posts.map((post) => (
-        <article key={post.handle} className="flex gap-3 p-4">
-          <img src={post.photos[0]!.thumb} alt="" className="size-10 shrink-0 rounded-full object-cover" />
-          <div className="min-w-0 flex-1 text-[15px]">
+        <article key={post.handle} className="flex gap-3 py-4 first:pt-0 last:pb-0">
+          <img src={post.photos[0]!.thumb} alt="" className="size-9 shrink-0 rounded-full object-cover" />
+          <div className="min-w-0 flex-1">
             <p>
-              <span className="font-semibold">{post.name}</span>{' '}
+              <span className="font-medium">{post.name}</span>{' '}
               <span className="text-neutral-500">
                 {post.handle} · {post.time}
               </span>

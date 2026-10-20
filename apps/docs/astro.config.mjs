@@ -2,12 +2,29 @@ import { defineConfig, fontProviders } from 'astro/config'
 import react from '@astrojs/react'
 import mdx from '@astrojs/mdx'
 import tailwindcss from '@tailwindcss/vite'
+import { satteri } from '@astrojs/markdown-satteri'
+
+/** Open external links in markdown in a new tab. */
+const externalLinks = {
+  name: 'external-links',
+  element: {
+    filter: ['a'],
+    visit(node, ctx) {
+      if (!/^https?:/.test(node.properties?.href)) return
+      ctx.setProperty(node, 'target', '_blank')
+      ctx.setProperty(node, 'rel', 'noreferrer')
+    },
+  },
+}
 
 export default defineConfig({
   devToolbar: { enabled: false },
   integrations: [react(), mdx()],
   vite: { plugins: [tailwindcss()] },
-  markdown: { shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' } } },
+  markdown: {
+    processor: satteri({ hastPlugins: [externalLinks] }),
+    shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' } },
+  },
   fonts: [
     {
       provider: fontProviders.local(),

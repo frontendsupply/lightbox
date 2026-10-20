@@ -1,39 +1,92 @@
 ---
-import { Font } from 'astro:assets'
-import '../styles/global.css'
-interface Props { title?: string; description?: string }
-const { title, description = 'A headless React lightbox with native-feeling gestures. Built on Base UI and Motion.' } = Astro.props
+import { Font } from "astro:assets";
+import "../styles/global.css";
+interface Props {
+  title?: string;
+  description?: string;
+}
+const {
+  title,
+  description = "A headless React lightbox with native-feeling gestures. Built on Base UI and Motion.",
+} = Astro.props;
 ---
+
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <Font cssVariable="--font-geist" preload />
     <Font cssVariable="--font-paper-mono" />
-    <title>{title ? `${title} — Lightbox` : 'Lightbox — native-feeling image viewer for React'}</title>
+    <title>
+      {
+        title
+          ? `${title} — Lightbox`
+          : "Lightbox — native-feeling image viewer for React"
+      }
+    </title>
     <meta name="description" content={description} />
   </head>
   <body>
     <slot />
+    <footer class="mx-auto max-w-[582px] px-4 pb-16">
+      <div
+        class="flex items-center justify-between border-t border-line pt-6 text-muted"
+      >
+        <a
+          href="https://github.com/frontendsupply/lightbox"
+          target="_blank"
+          rel="noreferrer"
+          class="transition-colors hover:text-ink">GitHub</a
+        >
+        <a
+          href="https://frontend.supply"
+          target="_blank"
+          rel="noreferrer"
+          class="group flex items-center gap-1.5 transition-colors hover:text-ink"
+        >
+          by
+          <img
+            src="/images/logo.svg"
+            alt=""
+            class="size-3.5 opacity-50 transition-opacity group-hover:opacity-100 dark:invert"
+          />
+          <span class="text-ink">frontend.supply</span>
+        </a>
+      </div>
+    </footer>
     <script>
       const icon = (d: string) =>
-        `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`
-      const copy = icon('M8 8V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-3M5 8h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z')
-      const done = icon('M5 12.5 10 17l9-10')
-      for (const pre of document.querySelectorAll('pre.astro-code')) {
-        const button = Object.assign(document.createElement('button'), { type: 'button', className: 'copy', innerHTML: copy })
-        button.setAttribute('aria-label', 'Copy code')
-        button.addEventListener('click', async () => {
-          await navigator.clipboard.writeText(pre.querySelector('code')!.innerText)
-          button.innerHTML = done
-          setTimeout(() => (button.innerHTML = copy), 1500)
-        })
-        pre.append(button)
-        pre.style.setProperty('--digits', String(pre.querySelectorAll('.line').length).length + '')
+        `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+      const copy = icon(
+        "M8 8V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-3M5 8h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z",
+      );
+      const done = icon("M5 12.5 10 17l9-10");
+      for (const pre of document.querySelectorAll("pre.astro-code")) {
+        const button = Object.assign(document.createElement("button"), {
+          type: "button",
+          className: "copy",
+          innerHTML: copy,
+        });
+        button.setAttribute("aria-label", "Copy code");
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(
+            pre.querySelector("code")!.innerText,
+          );
+          button.innerHTML = done;
+          setTimeout(() => (button.innerHTML = copy), 1500);
+        });
+        pre.append(button);
+        pre.style.setProperty(
+          "--digits",
+          String(pre.querySelectorAll(".line").length).length + "",
+        );
       }
     </script>
   </body>
