@@ -80,12 +80,13 @@ body {
   .doc > ul > li::marker {
     color: var(--muted);
   }
-  .doc :is(p, li, td) > code {
+  .doc :not(pre) > code {
     border-radius: 4px;
     background: var(--code);
     padding: 1px 4px;
     font-family: var(--font-mono);
     font-size: 0.9em;
+    font-weight: 400; /* Paper Mono has one weight; inside bold text the browser would fake it */
   }
   .doc > table {
     display: block;
@@ -99,7 +100,7 @@ body {
     text-align: left;
     vertical-align: top;
   }
-  .doc > table td > code {
+  .doc > table td code {
     background: none;
     padding: 0;
   }
