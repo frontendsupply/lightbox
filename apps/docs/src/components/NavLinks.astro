@@ -1,0 +1,28 @@
+---
+import type { MarkdownHeading } from 'astro'
+import { nav } from '../nav'
+
+interface Props {
+  path: string
+  sections: MarkdownHeading[]
+}
+const { path, sections } = Astro.props
+const link = (href: string) => ['transition-colors hover:text-ink', path === href ? 'text-ink' : 'text-muted']
+---
+{nav.map((group) => (
+  <div class="mt-8">
+    <p class="font-medium">{group.title}</p>
+    <ul class="mt-1.5 space-y-1">
+      {group.links.map(([label, href]) => (
+        <li>
+          <a href={href} class:list={link(href)}>{label}</a>
+          {path === href && sections.length > 0 && (
+            <ul class="mt-1 mb-2 space-y-1 border-l border-line pl-3">
+              {sections.map((h) => <li><a href={`#${h.slug}`} class="text-muted transition-colors hover:text-ink">{h.text}</a></li>)}
+            </ul>
+          )}
+        </li>
+      ))}
+    </ul>
+  </div>
+))}

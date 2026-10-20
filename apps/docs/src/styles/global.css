@@ -128,18 +128,8 @@ body {
   display: block;
   overflow-x: auto;
   scrollbar-width: thin;
-  padding: 14px 12px;
-  counter-reset: line;
+  padding: 14px 16px;
   font-family: var(--font-mono);
-}
-.astro-code .line::before {
-  display: inline-block;
-  width: calc(var(--digits, 1) * 1ch);
-  margin-right: 1rem;
-  color: var(--muted);
-  text-align: right;
-  counter-increment: line;
-  content: counter(line);
 }
 .astro-code .copy {
   position: absolute;
@@ -159,10 +149,8 @@ body {
 .astro-code .copy:hover {
   color: var(--ink);
 }
-@media (hover: hover) {
-  .astro-code:not(:hover) .copy:not(:focus-visible) {
-    opacity: 0;
-  }
+.astro-code:not(:hover) .copy:not(:focus-visible) {
+  opacity: 0;
 }
 @media (prefers-color-scheme: dark) {
   .astro-code,

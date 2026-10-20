@@ -1,6 +1,7 @@
 ---
 import type { MarkdownHeading } from 'astro'
-import { nav } from '../nav'
+import MobileNav from '../components/MobileNav'
+import NavLinks from '../components/NavLinks.astro'
 import Base from './Base.astro'
 
 const { frontmatter, headings = [] } = Astro.props as {
@@ -9,7 +10,6 @@ const { frontmatter, headings = [] } = Astro.props as {
 }
 const path = Astro.url.pathname.replace(/\/$/, '') || '/'
 const sections = headings.filter((h) => h.depth === 2)
-const link = (href: string) => ['transition-colors hover:text-ink', path === href ? 'text-ink' : 'text-muted']
 ---
 <Base title={frontmatter.title} description={frontmatter.description}>
   <aside class="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto px-10 py-12 xl:block">
@@ -17,29 +17,18 @@ const link = (href: string) => ['transition-colors hover:text-ink', path === hre
       <img src="/images/logo.svg" alt="" class="size-4 dark:invert" />
       Lightbox
     </a>
-    {nav.map((group) => (
-      <div class="mt-8">
-        <p class="font-medium">{group.title}</p>
-        <ul class="mt-1.5 space-y-1">
-          {group.links.map(([label, href]) => (
-            <li>
-              <a href={href} class:list={link(href)}>{label}</a>
-              {path === href && sections.length > 0 && (
-                <ul class="mt-1 mb-2 space-y-1 border-l border-line pl-3">
-                  {sections.map((h) => <li><a href={`#${h.slug}`} class="text-muted transition-colors hover:text-ink">{h.text}</a></li>)}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
-    ))}
+    <NavLinks path={path} sections={sections} />
   </aside>
-  <main class="mx-auto max-w-145.5 px-4 pt-10 pb-16 sm:pt-24">
-    <nav class="mb-12 flex flex-wrap gap-x-4 gap-y-1 xl:hidden">
-      <a href="/" class="font-medium">Lightbox</a>
-      {nav.flatMap((g) => g.links).map(([label, href]) => <a href={href} class:list={link(href)}>{label}</a>)}
-    </nav>
+  <header class="mx-auto flex h-12 max-w-145.5 items-center justify-between px-4 xl:hidden">
+    <a href="/" class="flex items-center gap-2 font-medium">
+      <img src="/images/logo.svg" alt="" class="size-4 dark:invert" />
+      Lightbox
+    </a>
+    <MobileNav client:media="(max-width: 1279px)">
+      <NavLinks path={path} sections={sections} />
+    </MobileNav>
+  </header>
+  <main class="mx-auto max-w-145.5 px-4 pt-6 pb-16 xl:pt-24">
     <div class="flex items-baseline justify-between gap-4">
       <h1 class="font-medium">{frontmatter.title}</h1>
       <a href={`${path}.md`} class="shrink-0 text-muted transition-colors hover:text-ink">View as Markdown</a>
