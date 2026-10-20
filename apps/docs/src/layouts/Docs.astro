@@ -40,7 +40,7 @@ const path = Astro.url.pathname.replace(/\/$/, '') || '/'
           <a href={href} class:list={[path === href ? 'font-medium' : 'text-neutral-500']}>{label}</a>
         ))}
       </nav>
-      <article class="prose prose-neutral max-w-3xl dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-a:underline-offset-4 prose-code:before:content-none prose-code:after:content-none prose-table:text-sm">
+      <article class="prose prose-neutral max-w-3xl dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-a:underline-offset-4 prose-code:font-normal prose-code:before:content-none prose-code:after:content-none prose-table:text-sm">
         <h1>{frontmatter.title}</h1>
         {frontmatter.description && <p class="lead">{frontmatter.description}</p>}
         <slot />

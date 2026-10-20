@@ -1,4 +1,5 @@
 ---
+import { Font } from 'astro:assets'
 import '../styles/global.css'
 interface Props { title?: string; description?: string }
 const { title, description = 'A headless React lightbox with native-feeling gestures. Built on Base UI and Motion.' } = Astro.props
@@ -11,9 +12,8 @@ const { title, description = 'A headless React lightbox with native-feeling gest
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono&display=swap" rel="stylesheet" />
+    <Font cssVariable="--font-geist" preload />
+    <Font cssVariable="--font-paper-mono" />
     <title>{title ? `${title} — Lightbox` : 'Lightbox — native-feeling image viewer for React'}</title>
     <meta name="description" content={description} />
   </head>

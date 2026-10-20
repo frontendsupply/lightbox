@@ -1,9 +1,9 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
-@theme {
-  --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, monospace;
+@theme inline {
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-paper-mono);
 }
 
 :root {
