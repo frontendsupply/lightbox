@@ -1,0 +1,7 @@
+---
+// Astro's <Code> defaults to a dark theme; use the same light/dark pair as markdown fences.
+import { Code } from 'astro:components'
+import type { ComponentProps } from 'astro/types'
+type Props = ComponentProps<typeof Code>
+---
+<Code themes={{ light: 'github-light', dark: 'github-dark' }} {...Astro.props} />

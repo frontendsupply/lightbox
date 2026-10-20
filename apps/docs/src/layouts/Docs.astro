@@ -1,7 +1,7 @@
 ---
+import type { MarkdownHeading } from 'astro'
 import Base from './Base.astro'
-import Header from '../components/Header.astro'
-const { frontmatter } = Astro.props
+const { frontmatter, headings = [] } = Astro.props as { frontmatter: Record<string, string>; headings?: MarkdownHeading[] }
 const nav = [
   { title: 'Guide', links: [
     ['Getting started', '/docs'],
@@ -16,35 +16,42 @@ const nav = [
   ] },
 ]
 const path = Astro.url.pathname.replace(/\/$/, '') || '/'
+const sections = headings.filter((h) => h.depth === 2)
+const link = (href: string) => ['transition-colors hover:text-ink', path === href ? 'text-ink' : 'text-muted']
 ---
 <Base title={frontmatter.title} description={frontmatter.description}>
-  <Header />
-  <div class="mx-auto flex max-w-6xl gap-10 px-4 sm:px-6">
-    <aside class="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-48 shrink-0 overflow-y-auto py-10 md:block">
-      {nav.map((group) => (
-        <div class="mb-8">
-          <p class="mb-2 text-xs font-medium tracking-wide text-neutral-400 uppercase">{group.title}</p>
-          <ul class="space-y-1">
-            {group.links.map(([label, href]) => (
-              <li>
-                <a href={href} class:list={['block rounded-md py-1 text-sm transition-colors', path === href ? 'font-medium text-neutral-950 dark:text-white' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200']}>{label}</a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </aside>
-    <main class="min-w-0 flex-1 py-10">
-      <nav class="mb-8 flex gap-4 overflow-x-auto text-sm whitespace-nowrap [scrollbar-width:none] md:hidden">
-        {nav.flatMap((g) => g.links).map(([label, href]) => (
-          <a href={href} class:list={[path === href ? 'font-medium' : 'text-neutral-500']}>{label}</a>
-        ))}
-      </nav>
-      <article class="prose prose-neutral max-w-3xl dark:prose-invert prose-headings:font-semibold prose-headings:tracking-tight prose-a:underline-offset-4 prose-code:font-normal prose-code:before:content-none prose-code:after:content-none prose-table:text-sm">
-        <h1>{frontmatter.title}</h1>
-        {frontmatter.description && <p class="lead">{frontmatter.description}</p>}
-        <slot />
-      </article>
-    </main>
-  </div>
+  <aside class="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto px-10 py-12 xl:block">
+    <a href="/" class="flex items-center gap-2 font-medium">
+      <img src="/images/logo.svg" alt="" class="size-4 dark:invert" />
+      Lightbox
+    </a>
+    {nav.map((group) => (
+      <div class="mt-8">
+        <p class="font-medium">{group.title}</p>
+        <ul class="mt-1.5 space-y-1">
+          {group.links.map(([label, href]) => (
+            <li>
+              <a href={href} class:list={link(href)}>{label}</a>
+              {path === href && sections.length > 0 && (
+                <ul class="mt-1 mb-2 space-y-1 border-l border-line pl-3">
+                  {sections.map((h) => <li><a href={`#${h.slug}`} class="text-muted transition-colors hover:text-ink">{h.text}</a></li>)}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </aside>
+  <main class="mx-auto max-w-[582px] px-4 pt-10 pb-32 sm:pt-24">
+    <nav class="mb-12 flex flex-wrap gap-x-4 gap-y-1 xl:hidden">
+      <a href="/" class="font-medium">Lightbox</a>
+      {nav.flatMap((g) => g.links).map(([label, href]) => <a href={href} class:list={link(href)}>{label}</a>)}
+    </nav>
+    <h1 class="font-medium">{frontmatter.title}</h1>
+    <article class="doc mt-4">
+      {frontmatter.description && <p>{frontmatter.description}</p>}
+      <slot />
+    </article>
+  </main>
 </Base>
