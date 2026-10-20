@@ -1,5 +1,7 @@
 ---
-interface Props { class?: string }
+interface Props {
+  class?: string
+}
 ---
 <div class:list={['demo rounded-xl border border-line p-4 sm:p-5', Astro.props.class]}>
   <slot />

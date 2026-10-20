@@ -1,17 +1,17 @@
 'use client'
-import * as React from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { useRender } from '@base-ui/react/use-render'
 import { mergeProps } from '@base-ui/react/merge-props'
+import { useRender } from '@base-ui/react/use-render'
 import {
+  type AnimationPlaybackControls,
   animate,
+  type MotionValue,
   motion,
+  type Transition,
   useMotionValue,
   useReducedMotion,
-  type AnimationPlaybackControls,
-  type MotionValue,
-  type Transition,
 } from 'motion/react'
+import * as React from 'react'
 import {
   band,
   clamp,
@@ -21,11 +21,11 @@ import {
   lerpVisual,
   objectPosition,
   panRange,
+  type Rect,
   scaleRect,
   toStyle,
-  zoomAt,
-  type Rect,
   type Visual,
+  zoomAt,
 } from './math.ts'
 import '@blossom-carousel/core/style.css'
 
@@ -96,7 +96,9 @@ interface Ctx {
   presence: MotionValue<number>
   /** Fractional index of what's in view: 2.5 is halfway between the third and fourth slide. */
   progress: MotionValue<number>
-  options: Required<Pick<LightboxRootProps, 'maxZoom' | 'wheelToZoom' | 'closeOnBackdropClick' | 'scrollTriggerIntoView'>> & {
+  options: Required<
+    Pick<LightboxRootProps, 'maxZoom' | 'wheelToZoom' | 'closeOnBackdropClick' | 'scrollTriggerIntoView'>
+  > & {
     open: Transition
     close: Transition
   }
@@ -219,7 +221,12 @@ const shift = (r: Rect, dx: number, dy: number): Rect => ({ ...r, x: r.x + dx, y
 const shiftVisual = (v: Visual, dx: number, dy: number): Visual =>
   dx || dy ? { ...v, img: shift(v.img, dx, dy), clip: shift(v.clip, dx, dy) } : v
 
-const fadeVisual = (v: Visual): Visual => ({ ...v, img: scaleRect(v.img, 0.92), clip: scaleRect(v.clip, 0.92), opacity: 0 })
+const fadeVisual = (v: Visual): Visual => ({
+  ...v,
+  img: scaleRect(v.img, 0.92),
+  clip: scaleRect(v.clip, 0.92),
+  opacity: 0,
+})
 
 function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   const {
@@ -251,9 +258,9 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
 
   // Hide the thumbnail image (not the whole trigger) so rings, borders and backgrounds stay put.
   const hideTrigger = useEvent((i: number | null) => {
-    hidden.current.forEach((el) => (el.style.visibility = ''))
+    for (const el of hidden.current) el.style.visibility = ''
     hidden.current = i === null ? [] : [...(triggers.get(i) ?? [])].map((t) => thumbImg(t) ?? t)
-    hidden.current.forEach((el) => (el.style.visibility = 'hidden'))
+    for (const el of hidden.current) el.style.visibility = 'hidden'
   })
 
   const pickTrigger = useEvent((i: number, scroll: ScrollBehavior | false) => {
@@ -265,7 +272,8 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
       if (v > seen + 0.01) [best, seen] = [el, v]
     }
     const el = best ?? list.find((el) => el === openTrigger.current) ?? list[0] ?? null
-    if (el && scroll && seen < 0.99) el.scrollIntoView({ block: seen > 0 ? 'nearest' : 'center', inline: 'nearest', behavior: scroll })
+    if (el && scroll && seen < 0.99)
+      el.scrollIntoView({ block: seen > 0 ? 'nearest' : 'center', inline: 'nearest', behavior: scroll })
     return el
   })
 
@@ -290,9 +298,12 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
     viewport.current?.freeze(index)
     const trigger = pickTrigger(index, scrollTriggerIntoView === false ? false : 'instant')
     // An instant scroll also cuts short a smooth page-sync scroll still in flight, so the target holds still.
-    if (trigger && scrollTriggerIntoView) trigger.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+    if (trigger && scrollTriggerIntoView)
+      trigger.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
     const image = images.get(index)
-    const animation = image ? image.animateOut(trigger, velocity) : animate(presence, 0, reducedMotion ? REDUCED : CLOSE)
+    const animation = image
+      ? image.animateOut(trigger, velocity)
+      : animate(presence, 0, reducedMotion ? REDUCED : CLOSE)
     // An invisible overlay that never unmounts would block the whole page; never wait forever.
     await Promise.race([animation, new Promise((r) => setTimeout(r, 1500))])
     live.current = { index, phase: 'closed' }
@@ -329,7 +340,8 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
     if (!scrollTriggerIntoView) return
     const id = setTimeout(() => {
       const el = pickTrigger(index, false)
-      if (el && visibleFraction(el) < 0.99) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollTriggerIntoView })
+      if (el && visibleFraction(el) < 0.99)
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollTriggerIntoView })
     }, 150)
     return () => clearTimeout(id)
   }, [index, phase, scrollTriggerIntoView, hideTrigger, pickTrigger])
@@ -342,6 +354,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   React.useLayoutEffect(() => (isOpen ? lockScroll() : undefined), [isOpen])
 
   const indexChange = useEvent(() => onIndexChange?.(index))
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `index` is the trigger; indexChange reads it fresh
   React.useEffect(() => {
     if (phase !== 'closed') indexChange()
   }, [index, phase, indexChange])
@@ -399,7 +412,10 @@ function Trigger({ index, render, ...props }: LightboxTriggerProps) {
     const el = ref.current
     if (!el) return
     let set = ctx.triggers.get(index)
-    if (!set) ctx.triggers.set(index, (set = new Set()))
+    if (!set) {
+      set = new Set()
+      ctx.triggers.set(index, set)
+    }
     set.add(el)
     return () => void set.delete(el)
   }, [ctx.triggers, index])
@@ -436,7 +452,8 @@ function Backdrop(props: Dialog.Backdrop.Props) {
   return <Dialog.Backdrop ref={ref} {...mergeProps<'div'>({ style: OVERLAY }, props as never)} />
 }
 
-const isEditable = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
+const isEditable = (t: EventTarget | null) =>
+  t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
 
 function Popup(props: Dialog.Popup.Props) {
   const ctx = useCtx()
@@ -444,13 +461,15 @@ function Popup(props: Dialog.Popup.Props) {
   usePresence(ref, ctx.presence, false)
 
   // Custom slides (no <Lightbox.Image>) still need an open transition.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the phase changes; everything else is read at that moment
   React.useLayoutEffect(() => {
     if (ctx.phase !== 'opening' || ctx.images.has(ctx.index)) return
     ctx.presence.set(0)
     animate(ctx.presence, 1, ctx.options.open).then(ctx.onOpened)
-  }, [ctx.phase]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ctx.phase])
 
   // A slide that scrolls away goes inert; don't let focus fall out of the dialog (or scroll the viewport).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `ctx.index` is the trigger: re-check focus on every slide change
   React.useEffect(() => {
     const el = ref.current
     const active = document.activeElement
@@ -501,7 +520,8 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
       return a && b ? b.getBoundingClientRect().left - a.getBoundingClientRect().left : el.clientWidth
     }
     // Explicit behaviour: Blossom's stylesheet makes the scroller `scroll-behavior: smooth`.
-    const to = (i: number, behavior: ScrollBehavior) => el.scrollTo({ left: clamp(i, 0, count - 1) * stride(), behavior })
+    const to = (i: number, behavior: ScrollBehavior) =>
+      el.scrollTo({ left: clamp(i, 0, count - 1) * stride(), behavior })
     viewport.current = {
       goTo: to,
       // Not 'instant': Chromium lets an in-flight smooth scroll override an instant one on the next
@@ -562,6 +582,7 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
         children:
           children ??
           ctx.items.map((item, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: items may repeat a src; the position is the slide
             <Slide key={item.src + i} index={i}>
               <Image />
             </Slide>
@@ -651,11 +672,12 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
   live.current = { F, ctx, slide }
 
   const stop = () => {
-    anims.current.forEach((a) => a.stop())
+    for (const a of anims.current) a.stop()
     anims.current = []
   }
 
   // Measure the slide's content box; borrow the aspect ratio from the thumbnail if we have to.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: measures once on mount; the ResizeObserver keeps it current
   React.useLayoutEffect(() => {
     const el = slideEl()
     const measure = () => {
@@ -677,7 +699,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     }
     if (imgRef.current?.complete && imgRef.current.naturalWidth) onLoad()
     return () => ro.disconnect()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const onLoad = () => {
     const img = imgRef.current
@@ -717,7 +739,9 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       }
       pending.current.add(done)
       // 0→1 progress looks "granular" to Motion, which would then idle for ages within a pixel of the end.
-      anims.current.push(animate(0, 1, { restDelta: 0.002, restSpeed: 0.02, ...transition, velocity, onUpdate, onComplete: done }))
+      anims.current.push(
+        animate(0, 1, { restDelta: 0.002, restSpeed: 0.02, ...transition, velocity, onUpdate, onComplete: done }),
+      )
     })
 
   const controller: ImageController = {
@@ -787,6 +811,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
   })
 
   // Open morph: this slide is the one being opened.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: starts the open morph once, when opening begins or the fitted rect first arrives
   React.useLayoutEffect(() => {
     if (ctx.phase !== 'opening' || ctx.index !== index || !F || started.current) return
     started.current = true
@@ -794,7 +819,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     const scroller = el.parentElement!
     scroller.scrollTo({ left: el.offsetLeft - (scroller.clientWidth - el.offsetWidth) / 2, behavior: 'instant' })
     controller.animateIn(ctx.openTrigger.current)
-  }, [ctx.phase, F]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ctx.phase, F])
 
   // ---- zoom helpers (slide-local coordinates) ----
   const bounds = (s: number) => {
@@ -836,12 +861,14 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
   }
 
   // Slides that scroll away reset their zoom (never mid-morph: that would kill the open/close animation).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `ctx.index` is the trigger: only a slide change resets zoom
   React.useEffect(() => {
     if (morph.current || ctx.phase !== 'open') return
     if (ctx.index !== index && (scale.get() !== 1 || x.get() || y.get())) settle(1, 0, 0)
-  }, [ctx.index]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ctx.index])
 
   // A resize invalidates pan bounds; start over.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `box` is the trigger: a resize resets zoom
   React.useEffect(() => {
     if (!morph.current) {
       stop()
@@ -849,9 +876,10 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       y.set(0)
       scale.set(1)
     }
-  }, [box]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [box])
 
   // Report zoom to the root and hand touch panning to us while zoomed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: subscribes once; reads the latest state through live.current
   React.useEffect(
     () =>
       scale.on('change', (s) => {
@@ -862,10 +890,11 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         const el = wrapRef.current?.closest<HTMLElement>('[data-lightbox-slide]')
         if (el) el.style.touchAction = z ? 'none' : 'pan-x'
       }),
-    [], // eslint-disable-line react-hooks/exhaustive-deps
+    [],
   )
 
   // ---- gestures ----
+  // biome-ignore lint/correctness/useExhaustiveDependencies: listeners attach once; the helpers read live state through live.current and refs
   React.useEffect(() => {
     const el = slideEl()
     const pointers = new Map<number, XY>()
@@ -915,7 +944,16 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()] as [XY, XY]
         const s0 = scale.get()
-        g = { kind: 'pinch', d0: dist(a, b) || 1, m0: mid(a, b), m: mid(a, b), s0, x0: x.get(), y0: y.get(), wasZoomed: s0 > 1.01 }
+        g = {
+          kind: 'pinch',
+          d0: dist(a, b) || 1,
+          m0: mid(a, b),
+          m: mid(a, b),
+          s0,
+          x0: x.get(),
+          y0: y.get(),
+          wasZoomed: s0 > 1.01,
+        }
       } else if (pointers.size === 1) g = { kind: 'pending', start: p, x0: x.get(), y0: y.get(), type: e.pointerType }
     }
 
@@ -949,7 +987,10 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         else if (!horizontal) {
           g.kind = 'dismiss'
           ctx.setDragging(true)
-        } else return void (g = null) // horizontal belongs to the scroller: native for touch, Blossom for mice
+        } else {
+          g = null // horizontal belongs to the scroller: native for touch, Blossom for mice
+          return
+        }
       }
       const dx = p.x - g.start.x
       const dy = p.y - g.start.y
@@ -1030,7 +1071,13 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         if (!cancelled) onTap(p, e.pointerType)
       } else if (kind === 'pan') {
         const b = bounds(scale.get())
-        const inertia = { type: 'inertia', power: 0.5, timeConstant: 280, bounceStiffness: 360, bounceDamping: 36 } as const
+        const inertia = {
+          type: 'inertia',
+          power: 0.5,
+          timeConstant: 280,
+          bounceStiffness: 360,
+          bounceDamping: 36,
+        } as const
         anims.current = [
           animate(x, x.get(), { ...inertia, velocity: v.x, min: b.minX, max: b.maxX }),
           animate(y, y.get(), { ...inertia, velocity: v.y, min: b.minY, max: b.maxY }),
@@ -1039,7 +1086,8 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         ctx.setDragging(false)
         const dy = p.y - start.y
         const projected = dy + v.y * 0.2
-        if (!cancelled && Math.abs(projected) > el.clientHeight * 0.15 && Math.sign(projected) === Math.sign(dy)) ctx.close(v)
+        if (!cancelled && Math.abs(projected) > el.clientHeight * 0.15 && Math.sign(projected) === Math.sign(dy))
+          ctx.close(v)
         else {
           settle(1, 0, 0)
           restorePresence()
@@ -1058,7 +1106,8 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       const { options } = live.current.ctx
       if (e.ctrlKey || e.metaKey || (options.wheelToZoom && Math.abs(dy) > Math.abs(dx))) {
         e.preventDefault()
-        if (safariScale === null) zoomNow(s * Math.exp(-clamp(dy, -50, 50) * (e.ctrlKey ? 0.01 : 0.002)), local(e, el.getBoundingClientRect()))
+        if (safariScale === null)
+          zoomNow(s * Math.exp(-clamp(dy, -50, 50) * (e.ctrlKey ? 0.01 : 0.002)), local(e, el.getBoundingClientRect()))
       } else if (s > 1.01) {
         e.preventDefault()
         stop()
@@ -1109,13 +1158,14 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       el.removeEventListener('gesturechange', onGestureChange)
       el.removeEventListener('gestureend', onGestureEnd)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   // Unmounting mid-animation must still let the root finish opening/closing.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cleanup on unmount only
   React.useEffect(
     () => () => {
       stop()
-      pending.current.forEach((done) => done())
+      for (const done of pending.current) done()
     },
     [],
   )
@@ -1179,7 +1229,12 @@ const NavButton = ({ step, render, ...props }: useRender.ComponentProps<'button'
     render,
     state: { disabled },
     props: mergeProps<'button'>(
-      { type: 'button', disabled, 'aria-label': step < 0 ? 'Previous image' : 'Next image', onClick: () => ctx.goTo(target) },
+      {
+        type: 'button',
+        disabled,
+        'aria-label': step < 0 ? 'Previous image' : 'Next image',
+        onClick: () => ctx.goTo(target),
+      },
       props,
     ),
   })
@@ -1196,7 +1251,8 @@ interface ThumbsCtx {
 const ThumbsContext = React.createContext<ThumbsCtx | null>(null)
 function useThumbs() {
   const thumbs = React.useContext(ThumbsContext)
-  if (!thumbs) throw new Error('<Lightbox.Thumbnail> and <Lightbox.ThumbnailIndicator> must be inside <Lightbox.Thumbnails>.')
+  if (!thumbs)
+    throw new Error('<Lightbox.Thumbnail> and <Lightbox.ThumbnailIndicator> must be inside <Lightbox.Thumbnails>.')
   return thumbs
 }
 
@@ -1211,8 +1267,11 @@ function Thumbnails({ render, ...props }: useRender.ComponentProps<'div'>) {
     const els = new Map<number, HTMLElement>()
     const boxes = new Map<number, Box>()
     const indicators = new Set<HTMLElement>()
-    const measure = (i: number, el: HTMLElement) => boxes.set(i, { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight })
-    const remeasure = () => els.forEach((el, i) => measure(i, el))
+    const measure = (i: number, el: HTMLElement) =>
+      boxes.set(i, { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight })
+    const remeasure = () => {
+      for (const [i, el] of els.entries()) measure(i, el)
+    }
     let strip: HTMLElement | null = null
     let ro: ResizeObserver | null = null
     const place = (p: number) => {
@@ -1240,7 +1299,7 @@ function Thumbnails({ render, ...props }: useRender.ComponentProps<'div'>) {
           place(ctx.progress.get())
         })
         ro.observe(el)
-        els.forEach((t) => ro!.observe(t))
+        for (const t of els.values()) ro.observe(t)
         return () => ro?.disconnect()
       },
       ctx: {
@@ -1302,7 +1361,12 @@ function Thumbnail({ index, render, ...props }: LightboxThumbnailProps) {
     ref,
     state: { active },
     props: mergeProps<'button'>(
-      { type: 'button', 'aria-label': `Show image ${index + 1}`, 'aria-current': active || undefined, onClick: () => ctx.goTo(index) },
+      {
+        type: 'button',
+        'aria-label': `Show image ${index + 1}`,
+        'aria-current': active || undefined,
+        onClick: () => ctx.goTo(index),
+      },
       props,
     ),
   })
@@ -1317,7 +1381,10 @@ function ThumbnailIndicator({ render, ...props }: useRender.ComponentProps<'div'
     defaultTagName: 'div',
     render,
     ref,
-    props: mergeProps<'div'>({ 'aria-hidden': true, style: { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' } }, props),
+    props: mergeProps<'div'>(
+      { 'aria-hidden': true, style: { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' } },
+      props,
+    ),
   })
 }
 

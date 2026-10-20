@@ -1,5 +1,5 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { test } from 'node:test'
 import { band, fit, intersect, lerpVisual, objectPosition, panRange, rubber, toStyle, zoomAt } from './math.ts'
 
 const box = { x: 0, y: 0, w: 100, h: 100 }
@@ -36,7 +36,11 @@ test('pan range centres small content and bounds large content', () => {
 })
 
 test('zoomAt keeps the focus point fixed', () => {
-  const pos = 10, t = 0, s0 = 1, s1 = 3, f = 40
+  const pos = 10,
+    t = 0,
+    s0 = 1,
+    s1 = 3,
+    f = 40
   const t1 = zoomAt(pos, t, s0, s1, f)
   // local point under focus before and after must match
   assert.equal((f - (pos + t)) / s0, (f - (pos + t1)) / s1)

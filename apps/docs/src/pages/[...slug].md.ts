@@ -1,5 +1,6 @@
 import type { APIRoute, GetStaticPaths } from 'astro'
 
+const fence = '```'
 type Frontmatter = { title: string; description?: string }
 const raw = import.meta.glob<string>('/src/pages/docs/**/*.mdx', { query: '?raw', import: 'default', eager: true })
 const meta = import.meta.glob<Frontmatter>('/src/pages/docs/**/*.mdx', { import: 'frontmatter', eager: true })
@@ -16,13 +17,19 @@ export const getStaticPaths = (() =>
 function toMarkdown(file: string) {
   const body = raw[file]!.replace(/^---\n[\s\S]*?\n---\n/, '')
   const imported = Object.fromEntries(
-    [...body.matchAll(/^import (\w+) from '(.+)\?raw'$/gm)].map(([, name, path]) => [name, sources[new URL(path!, `file://${file}`).pathname]]),
+    [...body.matchAll(/^import (\w+) from '(.+)\?raw'$/gm)].map(([, name, path]) => [
+      name,
+      sources[new URL(path!, `file://${file}`).pathname],
+    ]),
   )
   const { title, description } = meta[file]!
   const content = body
     .replace(/^(?:import .*\n)+/, '') // the MDX imports up top, not `import` lines inside code fences
     .replace(/^<Demo>.*<\/Demo>\n/gm, '')
-    .replace(/^<Code code=\{(\w+)\} lang="(\w+)" \/>$/gm, (_, name: string, lang: string) => '```' + lang + '\n' + imported[name]!.trimEnd() + '\n```')
+    .replace(
+      /^<Code code=\{(\w+)\} lang="(\w+)" \/>$/gm,
+      (_, name: string, lang: string) => `${fence}${lang}\n${imported[name]!.trimEnd()}\n${fence}`,
+    )
     .replace(/\n{3,}/g, '\n\n')
     .trim()
   return `# ${title}\n\n${description ? `${description}\n\n` : ''}${content}\n`

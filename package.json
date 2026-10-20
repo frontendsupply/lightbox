@@ -6,7 +6,12 @@
     "dev": "pnpm --filter docs dev",
     "build": "pnpm -r build",
     "test": "pnpm --filter @frontendsupply/lightbox test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "lint": "biome check",
+    "format": "biome check --write"
   },
-  "packageManager": "pnpm@11.23.0"
+  "packageManager": "pnpm@11.23.0",
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15"
+  }
 }

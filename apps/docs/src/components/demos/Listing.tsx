@@ -1,6 +1,6 @@
 import { cn } from 'cn'
-import { Lightbox, useLightbox, Slides, Chrome, Toolbar, Arrows, Thumbnails } from '../lightbox'
 import { mixed } from '../../data/photos'
+import { Arrows, Chrome, Lightbox, Slides, Thumbnails, Toolbar, useLightbox } from '../lightbox'
 
 const photos = mixed.map((p) => ({ ...p, caption: `${p.alt} — The Olive Grove Residence` }))
 
@@ -27,8 +27,19 @@ export default function Listing() {
     <Lightbox.Root items={photos}>
       <div className="relative grid h-64 grid-cols-4 grid-rows-2 gap-1.5 overflow-hidden rounded-xl sm:h-80">
         {photos.slice(0, 5).map((photo, i) => (
-          <Lightbox.Trigger key={photo.src} index={i} className={cn('overflow-hidden bg-neutral-200 dark:bg-neutral-800', i === 0 ? 'col-span-4 row-span-2 sm:col-span-2' : 'hidden sm:block')}>
-            <img src={photo.thumb} alt={photo.caption} className="size-full object-cover transition duration-300 hover:brightness-90" />
+          <Lightbox.Trigger
+            key={photo.src}
+            index={i}
+            className={cn(
+              'overflow-hidden bg-neutral-200 dark:bg-neutral-800',
+              i === 0 ? 'col-span-4 row-span-2 sm:col-span-2' : 'hidden sm:block',
+            )}
+          >
+            <img
+              src={photo.thumb}
+              alt={photo.caption}
+              className="size-full object-cover transition duration-300 hover:brightness-90"
+            />
           </Lightbox.Trigger>
         ))}
         <ShowAll />
@@ -43,17 +54,27 @@ export default function Listing() {
       </div>
 
       <p className="mt-4 text-neutral-600 dark:text-neutral-400">
-        The open plan living and dining areas flow onto a stone terrace. Five bedroom suites are spread across two levels, and the
-        primary occupies the entire upper wing. Open the gallery, swipe through a few rooms, then close it — the page behind
-        scrolled along, so the photo flies back to exactly where it lives.
+        The open plan living and dining areas flow onto a stone terrace. Five bedroom suites are spread across two
+        levels, and the primary occupies the entire upper wing. Open the gallery, swipe through a few rooms, then close
+        it — the page behind scrolled along, so the photo flies back to exactly where it lives.
       </p>
 
       <h4 className="mt-8 mb-3 font-medium">All photos</h4>
       {/* Natural shapes here; the hero grid above crops them — the viewer un-crops either way. */}
       <div className="columns-2 gap-1.5 sm:columns-3">
         {photos.map((photo, i) => (
-          <Lightbox.Trigger key={photo.src} index={i} className="mb-1.5 block w-full break-inside-avoid overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-900">
-            <img src={photo.thumb} alt={photo.caption} width={photo.width} height={photo.height} className="h-auto w-full" />
+          <Lightbox.Trigger
+            key={photo.src}
+            index={i}
+            className="mb-1.5 block w-full break-inside-avoid overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-900"
+          >
+            <img
+              src={photo.thumb}
+              alt={photo.caption}
+              width={photo.width}
+              height={photo.height}
+              className="h-auto w-full"
+            />
           </Lightbox.Trigger>
         ))}
       </div>

@@ -1,15 +1,24 @@
 ---
-import Base from '../layouts/Base.astro'
 import Code from '../components/Code.astro'
 import Hero from '../components/demos/Hero.tsx'
+import Base from '../layouts/Base.astro'
 
 const features = [
-  ['Morph, not fade', 'The thumbnail grows into the photo and un-crops on the way. Rounded corners, object-fit and object-position included.'],
+  [
+    'Morph, not fade',
+    'The thumbnail grows into the photo and un-crops on the way. Rounded corners, object-fit and object-position included.',
+  ],
   ['Real scroll physics', 'Swiping is a native scroll-snap scroller, so touch and trackpad get the OS’s own momentum.'],
   ['Pinch, wheel, double-tap', 'Zoom follows your fingers, rubber-bands at the limits, and pans with inertia.'],
   ['Pull to dismiss', 'Drag the photo away; the backdrop fades with you and a flick carries its velocity home.'],
-  ['The page keeps up', 'Navigate inside the viewer and the page behind scrolls along, so closing lands on the right thumbnail.'],
-  ['Zero opinions', 'No CSS ships. Style every part with Tailwind, CSS modules or anything else, via data attributes and a CSS variable.'],
+  [
+    'The page keeps up',
+    'Navigate inside the viewer and the page behind scrolls along, so closing lands on the right thumbnail.',
+  ],
+  [
+    'Zero opinions',
+    'No CSS ships. Style every part with Tailwind, CSS modules or anything else, via data attributes and a CSS variable.',
+  ],
 ]
 ---
 <Base>

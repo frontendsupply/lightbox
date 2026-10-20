@@ -2,9 +2,10 @@
  * A styled viewer recipe: the headless @frontendsupply/lightbox parts + Tailwind v4 + cn.
  * Copy this file into your app and make it yours — nothing here is part of the library.
  */
-import * as React from 'react'
+
+import { Lightbox, type LightboxItem, useLightbox } from '@frontendsupply/lightbox'
 import { cn } from 'cn'
-import { Lightbox, useLightbox, type LightboxItem } from '@frontendsupply/lightbox'
+import type * as React from 'react'
 
 export { Lightbox, useLightbox }
 
@@ -12,7 +13,16 @@ const iconButton =
   'pointer-events-auto grid size-10 place-items-center rounded-full bg-white/10 text-white backdrop-blur-md transition outline-none hover:bg-white/20 active:scale-95 focus-visible:ring-2 focus-visible:ring-white/60 disabled:pointer-events-none disabled:opacity-0'
 
 const Icon = ({ d, className }: { d: string; className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={cn('size-5', className)} aria-hidden>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={cn('size-5', className)}
+    aria-hidden
+  >
     <path d={d} />
   </svg>
 )
@@ -28,7 +38,12 @@ const icons = {
 export function Chrome({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
     <div className="pointer-events-none absolute inset-0 opacity-(--lightbox-presence)">
-      <div className={cn('absolute inset-0 transition-opacity duration-200 group-data-dragging:opacity-0 group-data-ui-hidden:opacity-0', className)}>
+      <div
+        className={cn(
+          'absolute inset-0 transition-opacity duration-200 group-data-dragging:opacity-0 group-data-ui-hidden:opacity-0',
+          className,
+        )}
+      >
         {children}
       </div>
     </div>
@@ -45,10 +60,21 @@ export function Toolbar({ zoom = true }: { zoom?: boolean }) {
       <div className="flex gap-2">
         {zoom && (
           <>
-            <button type="button" className={cn(iconButton, 'pointer-coarse:hidden')} onClick={zoomOut} disabled={!zoomed} aria-label="Zoom out">
+            <button
+              type="button"
+              className={cn(iconButton, 'pointer-coarse:hidden')}
+              onClick={zoomOut}
+              disabled={!zoomed}
+              aria-label="Zoom out"
+            >
               <Icon d={icons.minus} />
             </button>
-            <button type="button" className={cn(iconButton, 'pointer-coarse:hidden')} onClick={zoomIn} aria-label="Zoom in">
+            <button
+              type="button"
+              className={cn(iconButton, 'pointer-coarse:hidden')}
+              onClick={zoomIn}
+              aria-label="Zoom in"
+            >
               <Icon d={icons.plus} />
             </button>
           </>
@@ -78,7 +104,12 @@ export function Arrows() {
 export function Caption({ className }: { className?: string }) {
   const { item, index, count } = useLightbox<LightboxItem & { caption?: string }>()
   return (
-    <div className={cn('absolute inset-x-0 bottom-0 px-4 pt-10 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-center', className)}>
+    <div
+      className={cn(
+        'absolute inset-x-0 bottom-0 px-4 pt-10 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-center',
+        className,
+      )}
+    >
       <p className="text-sm font-medium">{item?.caption ?? item?.alt}</p>
       <p className="mt-0.5 text-xs text-white/50 tabular-nums">
         {index + 1} of {count}

@@ -1,12 +1,36 @@
 import { cn } from 'cn'
+import { landscapes, type Photo, portraits } from '../../data/photos'
 import { Lightbox, Viewer } from '../lightbox'
-import { landscapes, portraits, type Photo } from '../../data/photos'
 
 const posts = [
-  { name: 'Ayla Demir', handle: '@ayla', time: '2d', text: 'Seven days on the coast road. Seven completely different landscapes.', photos: landscapes.slice(0, 7) },
-  { name: 'Jonas Berg', handle: '@jberg', time: '5h', text: 'First light over the ridge. Worth every minute of the 4am alarm.', photos: landscapes.slice(8, 9) },
-  { name: 'Mira Sato', handle: '@mirasato', time: '1d', text: 'Two frames from the same walk.', photos: portraits.slice(0, 2) },
-  { name: 'Leo Hart', handle: '@leohart', time: '3d', text: 'Weekend, in three photos.', photos: landscapes.slice(10, 13) },
+  {
+    name: 'Ayla Demir',
+    handle: '@ayla',
+    time: '2d',
+    text: 'Seven days on the coast road. Seven completely different landscapes.',
+    photos: landscapes.slice(0, 7),
+  },
+  {
+    name: 'Jonas Berg',
+    handle: '@jberg',
+    time: '5h',
+    text: 'First light over the ridge. Worth every minute of the 4am alarm.',
+    photos: landscapes.slice(8, 9),
+  },
+  {
+    name: 'Mira Sato',
+    handle: '@mirasato',
+    time: '1d',
+    text: 'Two frames from the same walk.',
+    photos: portraits.slice(0, 2),
+  },
+  {
+    name: 'Leo Hart',
+    handle: '@leohart',
+    time: '3d',
+    text: 'Weekend, in three photos.',
+    photos: landscapes.slice(10, 13),
+  },
 ]
 
 function Media({ photos }: { photos: Photo[] }) {
@@ -23,11 +47,17 @@ function Media({ photos }: { photos: Photo[] }) {
         <Lightbox.Trigger
           key={photo.src}
           index={i}
-          className={cn('group relative block overflow-hidden bg-neutral-100 outline-none focus-visible:opacity-80 dark:bg-neutral-900', n === 1 && 'rounded-2xl', n === 3 && i === 0 && 'row-span-2')}
+          className={cn(
+            'group relative block overflow-hidden bg-neutral-100 outline-none focus-visible:opacity-80 dark:bg-neutral-900',
+            n === 1 && 'rounded-2xl',
+            n === 3 && i === 0 && 'row-span-2',
+          )}
         >
           <img src={photo.thumb} alt={photo.alt} className={cn('size-full object-cover', n === 1 && 'max-h-120')} />
           {i === 3 && n > 4 && (
-            <span className="absolute inset-0 grid place-items-center bg-black/45 text-lg font-medium text-white group-data-active:opacity-0">+{n - 4}</span>
+            <span className="absolute inset-0 grid place-items-center bg-black/45 text-lg font-medium text-white group-data-active:opacity-0">
+              +{n - 4}
+            </span>
           )}
         </Lightbox.Trigger>
       ))}

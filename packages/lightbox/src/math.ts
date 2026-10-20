@@ -32,7 +32,12 @@ export function fit(aspect: number, box: Rect, mode: 'contain' | 'cover' = 'cont
 export function intersect(a: Rect, b: Rect): Rect {
   const x = Math.max(a.x, b.x)
   const y = Math.max(a.y, b.y)
-  return { x, y, w: Math.max(0, Math.min(a.x + a.w, b.x + b.w) - x), h: Math.max(0, Math.min(a.y + a.h, b.y + b.h) - y) }
+  return {
+    x,
+    y,
+    w: Math.max(0, Math.min(a.x + a.w, b.x + b.w) - x),
+    h: Math.max(0, Math.min(a.y + a.h, b.y + b.h) - y),
+  }
 }
 
 export const scaleRect = (r: Rect, s: number): Rect => ({

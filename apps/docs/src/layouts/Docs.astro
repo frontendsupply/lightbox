@@ -1,8 +1,12 @@
 ---
 import type { MarkdownHeading } from 'astro'
-import Base from './Base.astro'
 import { nav } from '../nav'
-const { frontmatter, headings = [] } = Astro.props as { frontmatter: Record<string, string>; headings?: MarkdownHeading[] }
+import Base from './Base.astro'
+
+const { frontmatter, headings = [] } = Astro.props as {
+  frontmatter: Record<string, string>
+  headings?: MarkdownHeading[]
+}
 const path = Astro.url.pathname.replace(/\/$/, '') || '/'
 const sections = headings.filter((h) => h.depth === 2)
 const link = (href: string) => ['transition-colors hover:text-ink', path === href ? 'text-ink' : 'text-muted']

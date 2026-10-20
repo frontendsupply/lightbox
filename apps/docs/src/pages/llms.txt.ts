@@ -1,7 +1,10 @@
 import type { APIRoute } from 'astro'
 import { nav } from '../nav'
 
-const meta = import.meta.glob<{ description: string }>('/src/pages/docs/**/*.mdx', { import: 'frontmatter', eager: true })
+const meta = import.meta.glob<{ description: string }>('/src/pages/docs/**/*.mdx', {
+  import: 'frontmatter',
+  eager: true,
+})
 const fileOf = (href: string) => `/src/pages${href}${href === '/docs' ? '/index' : ''}.mdx`
 
 /** https://llmstxt.org — an index of the Markdown copy of every docs page. */
@@ -20,5 +23,5 @@ export const GET: APIRoute = ({ site }) => {
       ...group.links.map(([label, href]) => `- [${label}](${url(`${href}.md`)}): ${meta[fileOf(href)]!.description}`),
     ]),
   ]
-  return new Response(lines.join('\n') + '\n', { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+  return new Response(`${lines.join('\n')}\n`, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 }

@@ -1,8 +1,8 @@
-import { defineConfig, fontProviders } from 'astro/config'
-import react from '@astrojs/react'
-import mdx from '@astrojs/mdx'
-import tailwindcss from '@tailwindcss/vite'
 import { satteri } from '@astrojs/markdown-satteri'
+import mdx from '@astrojs/mdx'
+import react from '@astrojs/react'
+import tailwindcss from '@tailwindcss/vite'
+import { defineConfig, fontProviders } from 'astro/config'
 
 /** Open external links in markdown in a new tab. */
 const externalLinks = {

@@ -1,4 +1,5 @@
-@import 'tailwindcss';
+/* biome-ignore-all lint/complexity/noImportantStyles: Shiki colours code with inline styles; only !important beats them */
+@import "tailwindcss";
 
 :root {
   color-scheme: light dark;
@@ -48,7 +49,7 @@ body {
     font-weight: 600;
   }
   .doc > h2::after {
-    content: '';
+    content: "";
     flex: 1;
     height: 1px;
     background: var(--line);
@@ -151,7 +152,9 @@ body {
   border-radius: 6px;
   background: var(--code);
   color: var(--muted);
-  transition: color 150ms, opacity 150ms;
+  transition:
+    color 150ms,
+    opacity 150ms;
 }
 .astro-code .copy:hover {
   color: var(--ink);
@@ -184,15 +187,18 @@ body {
 }
 @keyframes story-cube {
   0% {
-    transform: translateX(calc(var(--card-w) * -1)) perspective(calc(var(--card-w) * 2.5)) translateZ(calc(var(--card-w) / -2)) rotateY(90deg) translateZ(calc(var(--card-w) / 2));
+    transform: translateX(calc(var(--card-w) * -1)) perspective(calc(var(--card-w) * 2.5))
+      translateZ(calc(var(--card-w) / -2)) rotateY(90deg) translateZ(calc(var(--card-w) / 2));
     filter: brightness(0.45);
   }
   50% {
-    transform: translateX(0) perspective(calc(var(--card-w) * 2.5)) translateZ(calc(var(--card-w) / -2)) rotateY(0deg) translateZ(calc(var(--card-w) / 2));
+    transform: translateX(0) perspective(calc(var(--card-w) * 2.5)) translateZ(calc(var(--card-w) / -2)) rotateY(0deg)
+      translateZ(calc(var(--card-w) / 2));
     filter: brightness(1);
   }
   100% {
-    transform: translateX(var(--card-w)) perspective(calc(var(--card-w) * 2.5)) translateZ(calc(var(--card-w) / -2)) rotateY(-90deg) translateZ(calc(var(--card-w) / 2));
+    transform: translateX(var(--card-w)) perspective(calc(var(--card-w) * 2.5)) translateZ(calc(var(--card-w) / -2))
+      rotateY(-90deg) translateZ(calc(var(--card-w) / 2));
     filter: brightness(0.45);
   }
 }

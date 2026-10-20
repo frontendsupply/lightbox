@@ -1,5 +1,5 @@
-import * as React from 'react'
 import { Lightbox, useLightbox } from '@frontendsupply/lightbox'
+import * as React from 'react'
 import { portraits } from '../../data/photos'
 
 const frameUrl = (id: number, w = 720, h = 1280) => `https://picsum.photos/id/${id}/${w}/${h}.webp`
@@ -26,12 +26,31 @@ const items = people.map((person) => ({
 }))
 
 const chevron = (d: string) => (
-  <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+  <svg
+    viewBox="0 0 24 24"
+    className="size-5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
     <path d={d} />
   </svg>
 )
 
-function StoryChrome({ person, slide, frame, onDone }: { person: (typeof people)[number]; slide: number; frame: number; onDone: () => void }) {
+function StoryChrome({
+  person,
+  slide,
+  frame,
+  onDone,
+}: {
+  person: (typeof people)[number]
+  slide: number
+  frame: number
+  onDone: () => void
+}) {
   const { index, phase } = useLightbox()
   const playing = index === slide && phase === 'open'
 
@@ -48,6 +67,7 @@ function StoryChrome({ person, slide, frame, onDone }: { person: (typeof people)
         <div className="absolute inset-x-0 top-0 bg-linear-to-b from-black/55 to-transparent p-3 pb-12 transition-opacity group-data-dragging:opacity-0 sm:rounded-t-2xl">
           <div className="flex gap-1">
             {person.frames.map((_, f) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: one bar per frame slot
               <div key={f} className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/35">
                 {f < frame && <div className="h-full bg-white" />}
                 {f === frame && playing && (
@@ -64,7 +84,10 @@ function StoryChrome({ person, slide, frame, onDone }: { person: (typeof people)
             <img src={frameUrl(person.frames[0]!, 64, 64)} alt="" className="size-8 rounded-full object-cover" />
             <span className="font-semibold">{person.name}</span>
             <span className="text-white/60">{person.time}</span>
-            <Lightbox.Close className="pointer-events-auto ml-auto grid size-8 place-items-center rounded-full text-white/90 hover:bg-white/10" aria-label="Close">
+            <Lightbox.Close
+              className="pointer-events-auto ml-auto grid size-8 place-items-center rounded-full text-white/90 hover:bg-white/10"
+              aria-label="Close"
+            >
               {chevron('M18 6 6 18M6 6l12 12')}
             </Lightbox.Close>
           </div>
@@ -81,10 +104,20 @@ function StoryArrows({ onStep }: { onStep: (dir: 1 | -1) => void }) {
   return (
     <div className="pointer-events-none absolute inset-0 opacity-(--lightbox-presence)">
       <div className="absolute inset-0 transition-opacity group-data-dragging:opacity-0">
-        <button type="button" aria-label="Previous" className={`${side} left-[calc(50%-var(--card-w)/2-3.5rem)]`} onClick={() => onStep(-1)}>
+        <button
+          type="button"
+          aria-label="Previous"
+          className={`${side} left-[calc(50%-var(--card-w)/2-3.5rem)]`}
+          onClick={() => onStep(-1)}
+        >
           {chevron('m15 18-6-6 6-6')}
         </button>
-        <button type="button" aria-label="Next" className={`${side} right-[calc(50%-var(--card-w)/2-3.5rem)]`} onClick={() => onStep(1)}>
+        <button
+          type="button"
+          aria-label="Next"
+          className={`${side} right-[calc(50%-var(--card-w)/2-3.5rem)]`}
+          onClick={() => onStep(1)}
+        >
           {chevron('m9 18 6-6-6-6')}
         </button>
       </div>

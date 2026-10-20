@@ -1,0 +1,16 @@
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.biome": "explicit",
+    "source.organizeImports.biome": "explicit"
+  },
+  "[javascript][typescript][typescriptreact][json][jsonc][css][tailwindcss][astro]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "tailwindCSS.classFunctions": ["cn"],
+  "typescript.tsdk": "packages/lightbox/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}
