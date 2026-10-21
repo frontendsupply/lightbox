@@ -83,6 +83,8 @@ interface ViewportController {
   goTo(index: number, behavior: ScrollBehavior): void
   /** Stop any scroll in flight and pin the viewport to a slide. */
   freeze(index: number): void
+  /** Jump straight to `to` and dissolve `from` into it, in place. */
+  fade(from: number, to: number): Promise<void>
 }
 
 interface Ctx {
@@ -96,6 +98,8 @@ interface Ctx {
   presence: MotionValue<number>
   /** Fractional index of what's in view: 2.5 is halfway between the third and fourth slide. */
   progress: MotionValue<number>
+  /** A slide kept rendered while it fades out after a jump, even outside the render window. */
+  held: number | null
   options: Required<
     Pick<LightboxRootProps, 'maxZoom' | 'wheelToZoom' | 'closeOnBackdropClick' | 'scrollTriggerIntoView'>
   > & {
@@ -153,6 +157,8 @@ const OPEN: Transition = { type: 'spring', stiffness: 380, damping: 34 }
 // ζ≈1: no undershoot into small targets (avatars), within a pixel of home in ~0.35s.
 const CLOSE: Transition = { type: 'spring', stiffness: 520, damping: 46 }
 const REDUCED: Transition = { duration: 0.16, ease: 'easeOut' }
+// Jumps further than one slide: a quick dissolve, like the Photos app, instead of sliding past everything between.
+const FADE: Transition = { duration: 0.24, ease: 'easeInOut' }
 const SNAP = 'x mandatory'
 const OVERLAY: React.CSSProperties = { position: 'fixed', inset: 0 }
 
@@ -245,6 +251,8 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   const [zoomed, setZoomed] = React.useState(false)
   const [dragging, setDragging] = React.useState(false)
   const [uiHidden, setUiHidden] = React.useState(false)
+  const [held, setHeld] = React.useState<number | null>(null)
+  const jump = React.useRef<{ from: number; to: number } | null>(null)
   const reducedMotion = useReducedMotion() ?? false
   const presence = useMotionValue(0)
   const progress = useMotionValue(0)
@@ -314,9 +322,25 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
 
   const goTo = useEvent((i: number) => {
     const target = clamp(i, 0, items.length - 1)
-    if (viewport.current) viewport.current.goTo(target, reducedMotion ? 'instant' : 'smooth')
-    else setIndex(target)
+    const { index: from, phase } = live.current
+    if (!viewport.current) return setIndex(target)
+    // Next and previous slide; anything further crossfades in place (see the layout effect below).
+    if (Math.abs(target - from) < 2 || reducedMotion || phase !== 'open')
+      return viewport.current.goTo(target, reducedMotion ? 'instant' : 'smooth')
+    jump.current = { from, to: target }
+    live.current = { ...live.current, index: target }
+    setHeld(from)
+    setIndex(target)
+    setZoomed(false)
   })
+
+  // A jump's target may have been outside the render window, so the fade starts once it has rendered.
+  React.useLayoutEffect(() => {
+    const j = jump.current
+    if (!j || j.to !== index) return
+    jump.current = null
+    viewport.current?.fade(j.from, j.to).then(() => setHeld((h) => (h === j.from ? null : h)))
+  }, [index])
 
   const onScrollIndex = useEvent((i: number) => {
     if (i === live.current.index || live.current.phase === 'closing' || live.current.phase === 'closed') return
@@ -369,6 +393,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
     reducedMotion,
     presence,
     progress,
+    held,
     options: {
       maxZoom,
       wheelToZoom,
@@ -515,23 +540,71 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
   React.useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
+    // Held while a crossfade has moved a slide out of place: measuring then would include its transform.
+    let fixedStride: number | null = null
     const stride = () => {
+      if (fixedStride !== null) return fixedStride
       const [a, b] = el.children as unknown as HTMLElement[]
       return a && b ? b.getBoundingClientRect().left - a.getBoundingClientRect().left : el.clientWidth
     }
     // Explicit behaviour: Blossom's stylesheet makes the scroller `scroll-behavior: smooth`.
     const to = (i: number, behavior: ScrollBehavior) =>
       el.scrollTo({ left: clamp(i, 0, count - 1) * stride(), behavior })
+    let fading: { finish(): void } | null = null
     viewport.current = {
       goTo: to,
       // Not 'instant': Chromium lets an in-flight smooth scroll override an instant one on the next
       // frame and then parks the scroller between snap points. A smooth scroll to the current slide
       // replaces it cleanly; the close morph follows the slide while it settles.
       freeze: (i) => to(i, reducedMotion ? 'instant' : 'smooth'),
+      fade: (from, target) =>
+        new Promise((resolve) => {
+          fading?.finish()
+          const slides = el.querySelectorAll<HTMLElement>(':scope > [data-lightbox-slide]')
+          const [a, b] = [slides[from], slides[target]]
+          to(target, 'instant')
+          if (!a || !b) return resolve()
+          fixedStride = stride()
+          // The outgoing slide is laid over the incoming one, right where it was, and dissolves into it. It
+          // stops being a snap area meanwhile: Chromium snaps to transformed boxes and would follow it home.
+          const restore = [a, b].map((el) => {
+            const { transform, zIndex, opacity, scrollSnapAlign } = el.style
+            return () => Object.assign(el.style, { transform, zIndex, opacity, scrollSnapAlign })
+          })
+          Object.assign(a.style, {
+            transform: `translateX(${(target - from) * stride()}px)`,
+            zIndex: '1',
+            scrollSnapAlign: 'none',
+          })
+          b.style.opacity = '0'
+          const anims = [
+            animate(0, 1, {
+              ...FADE,
+              onUpdate: (t) => {
+                a.style.opacity = String(1 - t)
+                b.style.opacity = String(t)
+              },
+            }),
+            // The thumbnail indicator glides across with the fade instead of teleporting.
+            animate(progress, target, FADE),
+          ]
+          const finish = () => {
+            if (fading !== handle) return
+            fading = null
+            for (const anim of anims) anim.stop()
+            for (const undo of restore) undo()
+            fixedStride = null
+            progress.set(el.scrollLeft / stride())
+            resolve()
+          }
+          const handle = { finish }
+          fading = handle
+          anims[0]!.then(finish)
+        }),
     }
     const onScroll = () => {
       const p = el.scrollLeft / stride()
-      progress.set(p)
+      if (!fading) progress.set(p) // a crossfade animates progress itself
       onScrollIndex(clamp(Math.round(p), 0, count - 1))
     }
     el.addEventListener('scroll', onScroll, { passive: true })
@@ -551,6 +624,7 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
     }
     return () => {
       cancelled = true
+      fading?.finish()
       blossom?.destroy()
       el.removeEventListener('scroll', onScroll)
       viewport.current = null
@@ -602,7 +676,7 @@ function Slide({ index, onTap, render, children, ...props }: LightboxSlideProps)
   const ctx = useCtx()
   const current = index === ctx.index
   // ponytail: renders index±2 only; a 10k-item gallery would want real virtualisation of the slides too.
-  const near = Math.abs(index - ctx.index) <= 2
+  const near = Math.abs(index - ctx.index) <= 2 || index === ctx.held
   const slide = React.useMemo(() => ({ index, onTap }), [index, onTap])
   const element = useRender({
     defaultTagName: 'div',

@@ -20,6 +20,7 @@ description: "The canonical interaction rules. Every input method gets the behav
 | **Wheel / two-finger scroll ↑ ↓** | — (or zoom with `wheelToZoom`) | Pan (or zoom with `wheelToZoom`) |
 | **Ctrl / ⌘ + wheel** | Zoom around the cursor | Zoom around the cursor |
 | **← →** | Previous / next | Previous / next |
+| **Thumbnail / `goTo()` two or more away** | Crossfade in place; the thumbnail indicator glides across | Crossfade |
 | **+ − 0** | Zoom in / out / reset | Zoom in / out / reset |
 | **Esc** | Close | Close |
 
@@ -39,6 +40,8 @@ description: "The canonical interaction rules. Every input method gets the behav
 - **Velocity carries over.** A flick to dismiss feeds its speed into the spring that flies the photo home. Panning ends in
   inertia that bounces off the edges.
 - **Rubber bands, not walls.** Over-zooming and over-panning resist progressively (the iOS curve), then settle.
+- **Jumps dissolve, steps slide.** Next and previous slide like a swipe. Going further — a thumbnail several photos
+  away — crossfades in place instead of sweeping past every photo in between, as Photos does.
 - **The page keeps up.** As you navigate, the page behind the viewer scrolls the current thumbnail into view
   (`scrollTriggerIntoView`). When you close, the photo always has somewhere visible to land; if it doesn't, it fades.
 - **Reduced motion is respected.** With `prefers-reduced-motion`, morphs become short fades.
