@@ -62,8 +62,9 @@ function StoryChrome({
 
   return (
     <div className="pointer-events-none absolute inset-0 grid place-items-center sm:py-8">
-      {/* Same box as the fitted 9:16 image, via container query units on the slide. */}
-      <div className="relative aspect-9/16 w-[min(100cqw,calc(100cqh*9/16))] opacity-(--lightbox-presence)">
+      {/* Same box as the fitted 9:16 image, via container query units on the slide. The only part of
+          the viewer that takes the pointer (besides the buttons): swipes, taps and holds start here. */}
+      <div className="pointer-events-auto relative aspect-9/16 w-[min(100cqw,calc(100cqh*9/16))] opacity-(--lightbox-presence)">
         <div className="absolute inset-x-0 top-0 bg-linear-to-b from-black/55 to-transparent p-3 pb-12 transition-opacity group-data-dragging:opacity-0 sm:rounded-t-2xl">
           <div className="flex gap-1">
             {person.frames.map((_, f) => (
@@ -141,7 +142,9 @@ function Viewer({ frames, setFrame }: { frames: number[]; setFrame: (person: num
       <Lightbox.Backdrop className="z-50 bg-neutral-950" />
       <Lightbox.Popup
         // The card: the largest 9:16 that fits (leaving room for the arrows on wider screens).
-        className="group z-50 text-white outline-none [--card-w:min(100vw,calc(100dvh*9/16))] sm:[--card-w:min(100vw-8rem,calc((100dvh-4rem)*9/16))]"
+        // The popup lets the pointer through, so the black around the card can't swipe the carousel
+        // and a click there lands on the backdrop, which closes.
+        className="group pointer-events-none z-50 text-white outline-none [--card-w:min(100vw,calc(100dvh*9/16))] sm:[--card-w:min(100vw-8rem,calc((100dvh-4rem)*9/16))]"
         onKeyDown={(e) => {
           if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
           e.preventDefault() // replaces the default slide navigation
