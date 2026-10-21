@@ -17,7 +17,7 @@ description: "The canonical interaction rules. Every input method gets the behav
 | **Mouse drag ← →** | Next / previous, with momentum ([Blossom](https://www.blossom-carousel.com)'s drag engine) | Pan |
 | **Mouse drag ↑ ↓** | Pull to dismiss | Pan |
 | **Trackpad two-finger swipe ← →** | Native scroll-snap: the OS's own physics | Pan |
-| **Wheel / two-finger scroll ↑ ↓** | — (or zoom with `wheelToZoom`) | Pan (or zoom with `wheelToZoom`) |
+| **Two-finger scroll / wheel ↑ ↓** | Pull to dismiss, released when the fingers lift (or zoom with `wheelToZoom`) | Pan (or zoom with `wheelToZoom`) |
 | **Ctrl / ⌘ + wheel** | Zoom around the cursor | Zoom around the cursor |
 | **← →** | Previous / next | Previous / next |
 | **Thumbnail / `goTo()` two or more away** | Crossfade in place; the thumbnail indicator glides across | Crossfade |
@@ -32,6 +32,9 @@ description: "The canonical interaction rules. Every input method gets the behav
 - **Trackpads are left alone.** A two-finger swipe is plain native scrolling with CSS scroll-snap — no JavaScript
   wheel handling at all, so it feels exactly like every other scroller on your Mac. Mouse dragging is added on top by
   [Blossom Carousel](https://www.blossom-carousel.com), which only loads on devices with a mouse (0kb on touch).
+- **Two fingers pull it away too.** Scrolling up or down on a trackpad drags the photo exactly like a finger would.
+  Wheel events never say when the fingers lift, but Chromium browsers flag the momentum that follows, and that's the
+  release. Safari and Firefox don't, so there the photo coasts with the momentum and lets go once it fades.
 - **Three-finger drag pauses on purpose.** If you drag with three fingers (Accessibility → Pointer Control → Trackpad
   Options), macOS holds the drag for a moment after you lift so you can reposition. Every app sees that delay; use a
   two-finger swipe to page.

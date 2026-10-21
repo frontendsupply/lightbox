@@ -114,7 +114,7 @@ interface Ctx {
   close(velocity?: XY): void
   goTo(index: number): void
   pickTrigger(index: number, scroll: ScrollBehavior | false): HTMLElement | null
-  hideTrigger(index: number | null): void
+  hideTrigger(trigger: HTMLElement | null): void
   onScrollIndex(index: number): void
   onOpened(): void
   setZoomed(zoomed: boolean): void
@@ -264,29 +264,35 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   const live = React.useRef({ index, phase })
   live.current = { index, phase }
 
-  // Hide the thumbnail image (not the whole trigger) so rings, borders and backgrounds stay put.
-  const hideTrigger = useEvent((i: number | null) => {
+  // Hide the thumbnail image (not the whole trigger) so rings, borders and backgrounds stay put. Only the slot
+  // the photo lifted from (or will land in): other thumbnails of the same photo stay where they are.
+  const hideTrigger = useEvent((trigger: HTMLElement | null) => {
     for (const el of hidden.current) el.style.visibility = ''
-    hidden.current = i === null ? [] : [...(triggers.get(i) ?? [])].map((t) => thumbImg(t) ?? t)
+    hidden.current = trigger ? [thumbImg(trigger) ?? trigger] : []
     for (const el of hidden.current) el.style.visibility = 'hidden'
   })
 
+  // A photo can have several triggers (a hero grid and an "all photos" grid). Back on the photo it opened
+  // from, it returns to the one that was clicked; otherwise to whichever is most visible.
   const pickTrigger = useEvent((i: number, scroll: ScrollBehavior | false) => {
     const list = [...(triggers.get(i) ?? [])].filter((el) => el.isConnected)
+    const opened = list.find((el) => el === openTrigger.current && area(toRect(el.getBoundingClientRect())) > 0)
     let best: HTMLElement | null = null
     let seen = 0
     for (const el of list) {
       const v = visibleFraction(el)
       if (v > seen + 0.01) [best, seen] = [el, v]
     }
-    const el = best ?? list.find((el) => el === openTrigger.current) ?? list[0] ?? null
-    if (el && scroll && seen < 0.99)
-      el.scrollIntoView({ block: seen > 0 ? 'nearest' : 'center', inline: 'nearest', behavior: scroll })
+    const el = opened ?? best ?? list[0] ?? null
+    const v = el ? visibleFraction(el) : 1
+    if (el && scroll && v < 0.99)
+      el.scrollIntoView({ block: v > 0 ? 'nearest' : 'center', inline: 'nearest', behavior: scroll })
     return el
   })
 
   const openAt = useEvent((i: number, trigger?: HTMLElement | null) => {
     if (live.current.phase !== 'closed' || !items.length) return
+    openTrigger.current = null // a trigger from the last visit mustn't win the pick below
     openTrigger.current = trigger ?? pickTrigger(i, false)
     live.current = { index: clamp(i, 0, items.length - 1), phase: 'opening' }
     progress.set(live.current.index)
@@ -360,7 +366,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   // The page behind keeps up: hide the current thumbnail, and once swiping settles, scroll it into view.
   React.useEffect(() => {
     if (phase !== 'open') return
-    hideTrigger(index)
+    hideTrigger(pickTrigger(index, false))
     if (!scrollTriggerIntoView) return
     const id = setTimeout(() => {
       const el = pickTrigger(index, false)
@@ -828,7 +834,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       const from = thumb ?? fadeVisual(rest(base()))
       apply(from, base())
       ctx.presence.set(0)
-      if (thumb) ctx.hideTrigger(index)
+      if (thumb) ctx.hideTrigger(trigger)
       // Endpoints are re-read every frame, so anything still settling underneath can't knock the morph off target.
       run(ctx.options.open, (p) => {
         const b = base()
@@ -852,7 +858,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       slideEl().style.overflow = 'visible'
       const thumb = !ctx.reducedMotion && trigger ? thumbVisual(trigger, aspect) : null
       const to = thumb ?? fadeVisual(from)
-      if (thumb) ctx.hideTrigger(index)
+      if (thumb) ctx.hideTrigger(trigger)
       // Follow the thumbnail if the page is still moving (a smooth sync scroll, the user, a layout shift).
       const t0 = trigger?.getBoundingClientRect()
       const target = (): Visual => {
@@ -989,8 +995,8 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       x: e.clientX - r.left - el.clientLeft,
       y: e.clientY - r.top - el.clientTop,
     })
-    const velocity = (now: number): XY => {
-      const recent = samples.filter((s) => now - s.t < 100)
+    const velocity = (trail: (XY & { t: number })[], now: number): XY => {
+      const recent = trail.filter((s) => now - s.t < 100)
       if (recent.length < 2 || now - recent[recent.length - 1]!.t > 50) return { x: 0, y: 0 }
       const a = recent[0]!
       const b = recent[recent.length - 1]!
@@ -998,6 +1004,29 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       return { x: (b.x - a.x) / dt, y: (b.y - a.y) / dt }
     }
     const restorePresence = () => anims.current.push(animate(live.current.ctx.presence, 1, SETTLE))
+    /** Pull-to-dismiss: move by (dx, dy) from the grab point, shrinking around it, fading the backdrop. */
+    const pull = (grab: XY, dx: number, dy: number) => {
+      const { ctx, F } = live.current
+      if (!F) return
+      const H = el.clientHeight
+      const k = 1 - clamp(Math.abs(dy) / (H * 0.5), 0, 1) * 0.3
+      x.set(grab.x + dx - (grab.x - F.x) * k - F.x)
+      y.set(grab.y + dy - (grab.y - F.y) * k - F.y)
+      scale.set(k)
+      ctx.presence.set(1 - clamp(Math.abs(dy) / (H * 0.35), 0, 1))
+    }
+    /** Far or fast enough in the direction it was pulled: fly home with that velocity. Otherwise spring back. */
+    const letGo = (dy: number, v: XY, cancelled = false) => {
+      const { ctx } = live.current
+      ctx.setDragging(false)
+      const projected = dy + v.y * 0.2
+      if (!cancelled && Math.abs(projected) > el.clientHeight * 0.15 && Math.sign(projected) === Math.sign(dy))
+        ctx.close(v)
+      else {
+        settle(1, 0, 0)
+        restorePresence()
+      }
+    }
     const reset = () => {
       if (g?.kind === 'dismiss') live.current.ctx.setDragging(false)
       g = null
@@ -1072,15 +1101,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         const b = bounds(scale.get())
         x.set(band(g.x0 + dx, b.minX, b.maxX, el.clientWidth))
         y.set(band(g.y0 + dy, b.minY, b.maxY, el.clientHeight))
-      } else if (g.kind === 'dismiss') {
-        const H = el.clientHeight
-        const k = 1 - clamp(Math.abs(dy) / (H * 0.5), 0, 1) * 0.3
-        // shrink around the grab point so it stays under the finger
-        x.set(g.start.x + dx - (g.start.x - F.x) * k - F.x)
-        y.set(g.start.y + dy - (g.start.y - F.y) * k - F.y)
-        scale.set(k)
-        ctx.presence.set(1 - clamp(Math.abs(dy) / (H * 0.35), 0, 1))
-      }
+      } else if (g.kind === 'dismiss') pull(g.start, dx, dy) // shrinks around the grab point: stays under the finger
     }
 
     const onTap = (p: XY, pointerType: string) => {
@@ -1138,7 +1159,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       }
       if (pointers.size) return
       const p = local(e)
-      const v = cancelled ? { x: 0, y: 0 } : velocity(e.timeStamp)
+      const v = cancelled ? { x: 0, y: 0 } : velocity(samples, e.timeStamp)
       const { kind, start } = g
       g = null
       if (kind === 'pending') {
@@ -1156,17 +1177,50 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
           animate(x, x.get(), { ...inertia, velocity: v.x, min: b.minX, max: b.maxX }),
           animate(y, y.get(), { ...inertia, velocity: v.y, min: b.minY, max: b.maxY }),
         ]
-      } else if (kind === 'dismiss') {
-        ctx.setDragging(false)
-        const dy = p.y - start.y
-        const projected = dy + v.y * 0.2
-        if (!cancelled && Math.abs(projected) > el.clientHeight * 0.15 && Math.sign(projected) === Math.sign(dy))
-          ctx.close(v)
-        else {
-          settle(1, 0, 0)
-          restorePresence()
-        }
+      } else if (kind === 'dismiss') letGo(p.y - start.y, v, cancelled)
+    }
+
+    // Two-finger scroll up/down on a trackpad (or a mouse wheel) pulls the photo away like a drag. Wheel events
+    // don't say when the fingers lift, but Chromium flags the momentum that follows (`WheelEvent.momentum`):
+    // that's the release. Without the flag (Safari, Firefox) the photo coasts with the momentum and lets go
+    // once the stream goes quiet. Either way the rest of the stream is swallowed.
+    let wheelPull: { mode: 'pending' | 'pull' | 'released' | 'ignore'; at: XY; trail: (XY & { t: number })[] } | null =
+      null
+    let wheelQuiet: ReturnType<typeof setTimeout> | undefined
+    const releaseWheel = () => {
+      if (wheelPull?.mode !== 'pull') return
+      wheelPull.mode = 'released'
+      letGo(wheelPull.at.y, velocity(wheelPull.trail, performance.now()), live.current.ctx.phase !== 'open')
+    }
+    const onWheelPull = (e: WheelEvent, dx: number, dy: number) => {
+      const momentum = (e as WheelEvent & { momentum?: boolean }).momentum
+      if (wheelPull?.mode === 'released' && momentum === false) wheelPull = null // fingers back down: a new gesture
+      if (!wheelPull && momentum) return // the tail of a scroll that began somewhere else
+      wheelPull ??= { mode: 'pending', at: { x: 0, y: 0 }, trail: [] }
+      const w = wheelPull
+      clearTimeout(wheelQuiet)
+      wheelQuiet = setTimeout(() => {
+        releaseWheel()
+        wheelPull = null
+      }, 120)
+      if (w.mode === 'ignore') return
+      if (w.mode !== 'pending') e.preventDefault()
+      if (w.mode === 'released') return
+      if (momentum) return releaseWheel()
+      w.at = { x: w.at.x - dx, y: w.at.y - dy } // the photo follows the fingers, as the page would
+      w.trail.push({ ...w.at, t: e.timeStamp })
+      if (w.trail.length > 20) w.trail.shift()
+      if (w.mode === 'pending') {
+        if (Math.hypot(w.at.x, w.at.y) < 4) return
+        // Pick the axis after a few pixels: horizontal stays native scrolling between slides.
+        w.mode = Math.abs(w.at.y) > Math.abs(w.at.x) ? 'pull' : 'ignore'
+        if (w.mode === 'ignore') return
+        e.preventDefault()
+        stop()
+        live.current.ctx.setDragging(true)
       }
+      const { F } = live.current
+      if (F) pull({ x: F.x + F.w / 2, y: F.y + F.h / 2 }, w.at.x, w.at.y)
     }
 
     const onWheel = (e: WheelEvent) => {
@@ -1188,7 +1242,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         const b = bounds(s)
         x.set(clamp(x.get() - dx, b.minX, b.maxX))
         y.set(clamp(y.get() - dy, b.minY, b.maxY))
-      }
+      } else onWheelPull(e, dx, dy)
     }
 
     // Safari: trackpad pinch arrives as GestureEvent (touch pinches are handled by pointers).
@@ -1222,6 +1276,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
     el.addEventListener('gestureend', onGestureEnd, opts)
     return () => {
       clearTimeout(tapTimer)
+      clearTimeout(wheelQuiet)
       el.removeEventListener('pointerdown', onDown)
       el.removeEventListener('pointermove', onMove)
       el.removeEventListener('pointerup', onUp)
