@@ -168,7 +168,11 @@ body {
  */
 @supports (animation-timeline: view()) {
   .story-face {
-    animation: story-cube linear both;
+    /* Longhands on purpose: the minifier would fold a shorthand + timeline into one `animation`,
+       which browsers reject (the timeline isn't allowed in the shorthand), dropping the whole cube. */
+    animation-name: story-cube;
+    animation-timing-function: linear;
+    animation-fill-mode: both;
     animation-timeline: view(inline);
     animation-range: cover calc(50% - var(--card-w)) cover calc(50% + var(--card-w));
     backface-visibility: hidden;
