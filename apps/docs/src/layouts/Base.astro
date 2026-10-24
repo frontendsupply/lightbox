@@ -6,9 +6,11 @@ interface Props {
   title?: string
   description?: string
 }
-const { title, description = 'A headless React lightbox with native-feeling gestures. Built on Base UI and Motion.' } =
-  Astro.props
-const fullTitle = title ? `${title} — Lightbox` : 'Lightbox — native-feeling image viewer for React'
+const {
+  title,
+  description = 'A headless React lightbox and image viewer with pinch zoom, swipe and pull to dismiss. Built on Base UI and Motion. Ships no CSS.',
+} = Astro.props
+const fullTitle = title ? `${title} | React Lightbox` : 'Lightbox: headless React lightbox with zoom and swipe'
 const url = new URL(Astro.url.pathname.replace(/(.)\/$/, '$1'), Astro.site)
 const image = new URL('/og.png', Astro.site)
 ---
@@ -41,6 +43,8 @@ const image = new URL('/og.png', Astro.site)
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Lightbox: native gestures out of the box. The design is entirely up to you." />
     <meta name="twitter:card" content="summary_large_image" />
+    <link rel="sitemap" href="/sitemap.xml" />
+    <slot name="head" />
   </head>
   <body>
     <slot />

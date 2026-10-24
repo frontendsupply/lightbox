@@ -1,8 +1,16 @@
 {
   "name": "@frontendsupply/lightbox",
   "version": "0.2.0",
-  "description": "Headless React lightbox with native-feeling gestures. Built on Base UI and Motion.",
+  "description": "Headless React lightbox and image viewer with pinch zoom, swipe, pull to dismiss and morph animations. Built on Base UI and Motion.",
   "license": "MIT",
+  "author": {
+    "name": "Frontend Supply",
+    "url": "https://frontend.supply"
+  },
+  "homepage": "https://lightbox.frontend.supply",
+  "bugs": {
+    "url": "https://github.com/frontendsupply/lightbox/issues"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": "./src/index.ts",
@@ -24,12 +32,19 @@
   },
   "keywords": [
     "react",
+    "react-lightbox",
     "lightbox",
     "image-viewer",
+    "photo-viewer",
+    "image-gallery",
     "gallery",
+    "carousel",
     "zoom",
-    "pinch",
+    "pinch-zoom",
+    "swipe",
+    "pull-to-dismiss",
     "headless",
+    "react-component",
     "base-ui",
     "motion"
   ],
