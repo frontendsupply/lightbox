@@ -315,9 +315,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
     if (trigger && scrollTriggerIntoView)
       trigger.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
     const image = images.get(index)
-    const animation = image
-      ? image.animateOut(trigger, velocity)
-      : animate(presence, 0, reducedMotion ? REDUCED : CLOSE)
+    const animation = image ? image.animateOut(trigger, velocity) : animate(presence, 0, ctx.options.close)
     // An invisible overlay that never unmounts would block the whole page; never wait forever.
     await Promise.race([animation, new Promise((r) => setTimeout(r, 1500))])
     live.current = { index, phase: 'closed' }
