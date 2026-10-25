@@ -1,16 +1,15 @@
-// Photos from picsum.photos (Unsplash licence). [id, width, height, author]
-type Raw = [number, number, number, string]
+// Photos from Unsplash in public/photos: <name>.webp, 1800px on the long side, and <name>-thumb.webp. [name, width, height, author]
+type Raw = [string, number, number, string]
 
 export type Photo = { src: string; thumb: string; width: number; height: number; alt: string; author: string }
 
-const toPhoto = ([id, w, h, author]: Raw): Photo => {
+const toPhoto = ([name, w, h, author]: Raw): Photo => {
   const W = w > h ? 1800 : 1200
-  const H = Math.round((W * h) / w)
   return {
-    src: `https://picsum.photos/id/${id}/${W}/${H}.webp`,
-    thumb: `https://picsum.photos/id/${id}/480/${Math.round((480 * h) / w)}.webp`,
+    src: `/photos/${name}.webp`,
+    thumb: `/photos/${name}-thumb.webp`,
     width: W,
-    height: H,
+    height: Math.round((W * h) / w),
     alt: `Photo by ${author}`,
     author,
   }
@@ -18,65 +17,40 @@ const toPhoto = ([id, w, h, author]: Raw): Photo => {
 
 export const landscapes: Photo[] = (
   [
-    [10, 2500, 1667, 'Paul Jarvis'],
-    [11, 2500, 1667, 'Paul Jarvis'],
-    [13, 2500, 1667, 'Paul Jarvis'],
-    [14, 2500, 1667, 'Paul Jarvis'],
-    [15, 2500, 1667, 'Paul Jarvis'],
-    [16, 2500, 1667, 'Paul Jarvis'],
-    [17, 2500, 1667, 'Paul Jarvis'],
-    [18, 2500, 1667, 'Paul Jarvis'],
-    [19, 2500, 1667, 'Paul Jarvis'],
-    [20, 3670, 2462, 'Aleks Dorohovich'],
-    [24, 4855, 1803, 'Alejandro Escamilla'],
-    [27, 3264, 1836, 'Yoni Kaplan-Nadel'],
-    [28, 4928, 3264, 'Jerry Adney'],
-    [29, 4000, 2670, 'Go Wild'],
-    [33, 5000, 3333, 'Alejandro Escamilla'],
-    [36, 4179, 2790, 'Vadim Sherbakov'],
-    [37, 2000, 1333, 'Austin Neill'],
-    [39, 3456, 2304, 'Luke Chesser'],
-    [41, 1280, 805, 'Nithya Ramanujam'],
-    [42, 3456, 2304, 'Luke Chesser'],
-    [43, 1280, 831, 'Oleg Chursin'],
-    [47, 4272, 2848, 'Christopher Sardegna'],
-    [48, 5000, 3333, 'Luke Chesser'],
-    [49, 1280, 792, 'Margaret Barley'],
-    [50, 4608, 3072, 'Tyler Wanlass'],
-    [54, 3264, 2176, 'Nicholas Swanson'],
-    [55, 4608, 3072, 'Tyler Wanlass'],
-    [56, 2880, 1920, 'Sebastian Muller'],
-    [58, 1280, 853, 'Tony Naccarato'],
-    [59, 2464, 1632, 'Art Wave'],
+    ['coast-road', 7952, 5304, 'Annie Spratt'],
+    ['coast-aerial', 3992, 2992, 'Rod Long'],
+    ['rocky-coast', 5560, 3712, 'Ian Schneider'],
+    ['road-to-sea', 7933, 3400, 'Zongnan Bao'],
+    ['shoreline', 5014, 3340, 'Kiril Dobrev'],
+    ['sea-cliff', 6016, 4000, 'Greg Jurgajtis'],
+    ['palm-road', 5742, 3828, 'Fabio Sasso'],
+    ['alpine-lake', 6000, 4000, 'Adam Vradenburg'],
+    ['ridge-sunrise', 6016, 4016, 'Sven Pieren'],
+    ['dunes', 5835, 3890, 'Wolfgang Hasselmann'],
+    ['latte', 5824, 3259, 'Fahmi Fakhrudin'],
+    ['cyclists', 6000, 4000, 'Coen van de Broek'],
+    ['picnic', 5431, 3621, 'Svitlana'],
+    ['monument-valley', 4928, 3264, 'Ganapathy Kumar'],
   ] as Raw[]
 ).map(toPhoto)
 
 export const portraits: Photo[] = (
   [
-    [23, 3887, 4899, 'Alejandro Escamilla'],
-    [31, 3264, 4912, 'How-Soon Ngu'],
-    [35, 2758, 3622, 'Shane Colella'],
-    [57, 2448, 3264, 'Nicholas Swanson'],
-    [67, 2848, 4288, 'Rula Sibai'],
-    [75, 1999, 2998, 'Jassy Onyae'],
-    [78, 1584, 2376, 'Paul Evans'],
-    [79, 2000, 3011, 'Dorothy Lin'],
-    [88, 1280, 1707, 'Barcelona'],
-    [156, 2177, 3264, 'Christopher Sardegna'],
-    [253, 2448, 3264, 'Bartosz Bąk'],
-    [260, 1500, 2250, 'Sylwia Bartyzel'],
+    ['pine-path', 4000, 6000, 'Jack Skinner'],
+    ['tree-path', 3657, 5486, 'Casper van Battum'],
+    ['white-building', 3346, 4736, 'Joel Filipe'],
+    ['abiqua-falls', 3213, 4813, 'MJ Tangonan'],
+    ['kynance-mews', 3750, 5625, 'Bruno Martins'],
+    ['axel-towers', 3994, 4992, 'Joakim Nådell'],
   ] as Raw[]
 ).map(toPhoto)
 
-/** A picsum photo cropped to the aspect ratio `aw:ah`, 1800px on its long side (thumbnails 480px). */
-const cropped = (id: number, aw: number, ah: number, author: string): Photo => {
-  const size = (long: number) =>
-    aw >= ah ? [long, Math.round((long * ah) / aw)] : [Math.round((long * aw) / ah), long]
-  const [W, H] = size(1800)
-  const [tw, th] = size(480)
+/** A photo cropped to the aspect ratio `aw:ah`, 1800px on its long side (thumbnails 480px). */
+const cropped = (name: string, aw: number, ah: number, author: string): Photo => {
+  const [W, H] = aw >= ah ? [1800, Math.round((1800 * ah) / aw)] : [Math.round((1800 * aw) / ah), 1800]
   return {
-    src: `https://picsum.photos/id/${id}/${W}/${H}.webp`,
-    thumb: `https://picsum.photos/id/${id}/${tw}/${th}.webp`,
+    src: `/photos/${name}.webp`,
+    thumb: `/photos/${name}-thumb.webp`,
     width: W!,
     height: H!,
     alt: `Photo by ${author}`,
@@ -86,16 +60,16 @@ const cropped = (id: number, aw: number, ah: number, author: string): Photo => {
 
 /** Every shape a real gallery throws at you: portraits, squares, panoramas and everything between. */
 export const mixed: Photo[] = [
-  cropped(1018, 4, 3, 'Andrew Ridley'),
-  cropped(1027, 2, 3, 'Roksolana Zasiadko'),
-  cropped(1015, 21, 9, 'Alexey Topolyanskiy'),
-  cropped(1049, 1, 1, 'Rosan Harmens'),
-  cropped(1036, 3, 2, 'Wolfgang Lutz'),
-  cropped(1040, 4, 5, 'Rachel Davis'),
-  cropped(1044, 16, 9, 'Steve Carter'),
-  cropped(1047, 3, 4, 'sergee bee'),
-  cropped(1022, 5, 2, 'Vashishtha Jogi'),
-  cropped(1025, 9, 16, 'Matthew Wiebe'),
-  cropped(1039, 5, 4, 'Andrew Coelho'),
-  cropped(1043, 2, 1, 'Christian Joudrey'),
+  cropped('villa', 4, 3, 'Yaroslav Alekseenko'),
+  cropped('kitchen', 2, 3, 'Sosey Interiors'),
+  cropped('olive-tree', 21, 9, 'Vasilis Caravitis'),
+  cropped('bedroom', 1, 1, 'Spacejoy'),
+  cropped('living-room', 3, 2, 'Lotus Design N Print'),
+  cropped('armchair', 4, 5, 'Clay Banks'),
+  cropped('pool', 16, 9, 'Frames For Your Heart'),
+  cropped('bathroom', 3, 4, 'Phil Hearing'),
+  cropped('sea-house', 5, 2, 'Denis Dimitrov'),
+  cropped('palms', 9, 16, 'Durian Bullet'),
+  cropped('dining-room', 5, 4, 'yann maignan'),
+  cropped('olive-wall', 2, 1, 'Lothar Boris Piltz'),
 ]

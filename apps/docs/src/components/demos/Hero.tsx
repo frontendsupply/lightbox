@@ -6,14 +6,14 @@ const photos = [
   portraits[2],
   landscapes[3],
   landscapes[5],
-  portraits[4],
+  portraits[3],
   landscapes[7],
   landscapes[9],
-  portraits[6],
+  portraits[4],
   landscapes[11],
   landscapes[12],
-  portraits[8],
-  landscapes[14],
+  portraits[5],
+  landscapes[13],
 ].map((p, i) => ({ ...p!, caption: p!.alt, i }))
 const shown = 9
 
