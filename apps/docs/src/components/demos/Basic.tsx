@@ -22,8 +22,13 @@ export default function Basic() {
         <Lightbox.Backdrop className="z-50 bg-black" />
         <Lightbox.Popup className="z-50 outline-none">
           <Lightbox.Viewport />
-          <Lightbox.Close className="absolute top-4 right-4 rounded-full bg-white/15 px-4 py-1.5 text-sm text-white backdrop-blur">
-            Close
+          <Lightbox.Close
+            className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-white/15 text-white backdrop-blur"
+            aria-label="Close"
+          >
+            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+            </svg>
           </Lightbox.Close>
         </Lightbox.Popup>
       </Lightbox.Portal>
