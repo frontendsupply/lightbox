@@ -16,6 +16,8 @@ export const GET: APIRoute = ({ site }) => {
     '> A headless React lightbox with native-feeling gestures, built on Base UI and Motion. It ships behaviour only, no CSS: you style every part.',
     '',
     'Package: `@frontendsupply/lightbox`. Install with `pnpm add @frontendsupply/lightbox @base-ui/react motion` (React 19+).',
+    '',
+    `Start with the [agent guide](${url('/agent')}): everything needed to add Lightbox to an app, on one page.`,
     ...nav.flatMap((group) => [
       '',
       `## ${group.title}`,

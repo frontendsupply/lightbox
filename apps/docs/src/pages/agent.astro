@@ -1,0 +1,31 @@
+---
+import guide from '../agent.md?raw'
+import Base from '../layouts/Base.astro'
+---
+<Base title="Agent guide" description="Everything a coding agent needs to add Lightbox to a React app, in one Markdown file.">
+  <main class="mx-auto max-w-145.5 px-4 pt-10 pb-16 sm:pt-24">
+    <nav class="flex items-center gap-4">
+      <a href="/" class="mr-auto flex items-center gap-2 font-medium">
+        <img src="/images/logo.svg" alt="" class="size-4 dark:invert" />
+        Lightbox
+      </a>
+      <a href="/" class="text-muted transition-colors hover:text-ink">Human</a>
+      <a href="/agent" aria-current="page">Agent</a>
+    </nav>
+
+    <div class="mt-12 flex items-center justify-between border-b border-line pb-3 font-mono text-[13px] text-muted">
+      <span>lightbox.md</span>
+      <button type="button" id="copy-guide" class="transition-colors hover:text-ink">Copy</button>
+    </div>
+    <pre id="guide" class="mt-6 font-mono text-[13px]/5 break-words whitespace-pre-wrap">{guide}</pre>
+  </main>
+</Base>
+
+<script>
+  const button = document.getElementById('copy-guide')!
+  button.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(document.getElementById('guide')!.textContent!)
+    button.textContent = 'Copied'
+    setTimeout(() => (button.textContent = 'Copy'), 1500)
+  })
+</script>
