@@ -51,7 +51,12 @@ Requires React 19 or later. Read [Getting started](https://lightbox.frontend.sup
 - Examples: [chat](https://lightbox.frontend.supply/docs/examples/chat),
   [listing gallery](https://lightbox.frontend.supply/docs/examples/listing),
   [stories](https://lightbox.frontend.supply/docs/examples/stories),
-  [product page](https://lightbox.frontend.supply/docs/examples/product)
+  [product page](https://lightbox.frontend.supply/docs/examples/product),
+  [travel map](https://lightbox.frontend.supply/docs/examples/map),
+  [fly to bag](https://lightbox.frontend.supply/docs/examples/bag),
+  [Quick Look](https://lightbox.frontend.supply/docs/examples/quick-look),
+  [floor plan](https://lightbox.frontend.supply/docs/examples/floor-plan),
+  [contact sheet](https://lightbox.frontend.supply/docs/examples/contact-sheet)
 
 ## License
 

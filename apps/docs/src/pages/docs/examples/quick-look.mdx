@@ -1,0 +1,13 @@
+---
+layout: ../../../layouts/Docs.astro
+title: "Quick Look"
+description: "A Finder-style file list. Select a row and press Space: the icon grows into the photo. Arrow keys page through, Space closes."
+---
+import Code from '../../../components/Code.astro'
+import Demo from '../../../components/Demo.astro'
+import QuickLook from '../../../components/demos/QuickLook.tsx'
+import source from '../../../components/demos/QuickLook.tsx?raw'
+
+<Demo><QuickLook client:load /></Demo>
+
+<Code code={source} lang="tsx" />

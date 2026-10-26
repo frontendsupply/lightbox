@@ -1,0 +1,13 @@
+---
+layout: ../../../layouts/Docs.astro
+title: "Contact sheet"
+description: "Photos on strips of film. In the viewer, a red grease-pencil loop marks the frame and slides along the film as you swipe."
+---
+import Code from '../../../components/Code.astro'
+import Demo from '../../../components/Demo.astro'
+import ContactSheet from '../../../components/demos/ContactSheet.tsx'
+import source from '../../../components/demos/ContactSheet.tsx?raw'
+
+<Demo><ContactSheet client:load /></Demo>
+
+<Code code={source} lang="tsx" />

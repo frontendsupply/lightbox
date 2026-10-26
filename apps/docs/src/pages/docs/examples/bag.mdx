@@ -1,0 +1,15 @@
+---
+layout: ../../../layouts/Docs.astro
+title: "Fly to bag"
+description: "Add to bag from the viewer and the photo flies into the bag icon, using the same morph that closes the viewer."
+---
+import Code from '../../../components/Code.astro'
+import Demo from '../../../components/Demo.astro'
+import FlyToBag from '../../../components/demos/FlyToBag.tsx'
+import source from '../../../components/demos/FlyToBag.tsx?raw'
+
+Photos by Mojtaba Fahiminia, Vooglam Eyewear, Clay Banks and Fahmi Fakhrudin on Unsplash.
+
+<Demo><FlyToBag client:load /></Demo>
+
+<Code code={source} lang="tsx" />

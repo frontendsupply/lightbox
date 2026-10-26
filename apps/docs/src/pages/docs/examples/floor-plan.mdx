@@ -1,0 +1,13 @@
+---
+layout: ../../../layouts/Docs.astro
+title: "Floor plan"
+description: "Rooms open from the plan. In the viewer, a mini plan is the thumbnail strip, and its highlight glides from room to room."
+---
+import Code from '../../../components/Code.astro'
+import Demo from '../../../components/Demo.astro'
+import FloorPlan from '../../../components/demos/FloorPlan.tsx'
+import source from '../../../components/demos/FloorPlan.tsx?raw'
+
+<Demo><FloorPlan client:load /></Demo>
+
+<Code code={source} lang="tsx" />

@@ -1,0 +1,13 @@
+---
+layout: ../../../layouts/Docs.astro
+title: "Travel map"
+description: "Round pins grow into photos. Swipe through the trip and the map pans from pin to pin behind the viewer."
+---
+import Code from '../../../components/Code.astro'
+import Demo from '../../../components/Demo.astro'
+import TravelMap from '../../../components/demos/TravelMap.tsx'
+import source from '../../../components/demos/TravelMap.tsx?raw'
+
+<Demo><TravelMap client:load /></Demo>
+
+<Code code={source} lang="tsx" />

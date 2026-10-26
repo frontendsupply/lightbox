@@ -16,6 +16,11 @@ export const nav: { title: string; links: [label: string, href: string][] }[] = 
       ['Listing', '/docs/examples/listing'],
       ['Stories', '/docs/examples/stories'],
       ['Product', '/docs/examples/product'],
+      ['Travel map', '/docs/examples/map'],
+      ['Fly to bag', '/docs/examples/bag'],
+      ['Quick Look', '/docs/examples/quick-look'],
+      ['Floor plan', '/docs/examples/floor-plan'],
+      ['Contact sheet', '/docs/examples/contact-sheet'],
     ],
   },
 ]
