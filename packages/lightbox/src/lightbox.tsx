@@ -775,7 +775,9 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
       const r = trigger.getBoundingClientRect()
       setAspect(thumb?.naturalWidth ? thumb.naturalWidth / thumb.naturalHeight : r.height ? r.width / r.height : 1.5)
     }
-    if (imgRef.current?.complete && imgRef.current.naturalWidth) onLoad()
+    // A <video> rendered through `render` reports readiness with readyState (and `loadeddata`), not `complete`.
+    const media = imgRef.current as (HTMLImageElement & { readyState?: number }) | null
+    if (media && (media.complete ? media.naturalWidth : (media.readyState ?? 0) >= 2)) onLoad()
     return () => ro.disconnect()
   }, [])
 
@@ -1312,6 +1314,7 @@ function Image({ render, src, alt, srcSet, sizes, ...props }: LightboxImageProps
         draggable: false,
         decoding: 'async',
         onLoad,
+        onLoadedData: onLoad,
         style: fill,
       },
       props,
