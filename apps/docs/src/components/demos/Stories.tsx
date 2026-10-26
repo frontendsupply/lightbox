@@ -126,12 +126,13 @@ function Story({
       />
       <div className="pointer-events-none absolute inset-0 grid place-items-center sm:py-8">
         {/* Same box as the fitted 9:16 image, via container query units on the slide. The only part of
-            the viewer that takes the pointer (besides the buttons): swipes, taps and holds start here. */}
+            the viewer that takes the pointer (besides the buttons): swipes, taps and holds start here.
+            The header waits out the open and close morphs: it sits at the card's full size, the photo doesn't. */}
         <div
           className="pointer-events-auto relative aspect-9/16 w-[min(100cqw,calc(100cqh*9/16))] opacity-(--lightbox-presence)"
           onPointerDown={() => setHeld(true)}
         >
-          <div className="absolute inset-x-0 top-0 bg-linear-to-b from-black/55 to-transparent p-3 pb-12 transition-opacity group-data-dragging:opacity-0 sm:rounded-t-2xl">
+          <div className="absolute inset-x-0 top-0 bg-linear-to-b from-black/55 to-transparent p-3 pb-12 transition-opacity group-data-dragging:opacity-0 group-data-[phase=closing]:opacity-0 group-data-[phase=opening]:opacity-0 sm:rounded-t-2xl">
             <div className="flex gap-1">
               {person.frames.map((_, f) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: one bar per frame slot
@@ -188,7 +189,7 @@ function StoryArrows({ onStep }: { onStep: (dir: 1 | -1) => void }) {
     'pointer-events-auto absolute top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full bg-white/15 backdrop-blur transition hover:bg-white/25 sm:grid'
   return (
     <div className="pointer-events-none absolute inset-0 opacity-(--lightbox-presence)">
-      <div className="absolute inset-0 transition-opacity group-data-dragging:opacity-0">
+      <div className="absolute inset-0 transition-opacity group-data-dragging:opacity-0 group-data-[phase=closing]:opacity-0 group-data-[phase=opening]:opacity-0">
         <button
           type="button"
           aria-label="Previous"
