@@ -12,9 +12,10 @@ export const nav: { title: string; links: [label: string, href: string][] }[] = 
   {
     title: 'Examples',
     links: [
-      ['Feed', '/docs/examples/feed'],
+      ['Chat', '/docs/examples/chat'],
       ['Listing', '/docs/examples/listing'],
       ['Stories', '/docs/examples/stories'],
+      ['Product', '/docs/examples/product'],
     ],
   },
 ]

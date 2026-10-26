@@ -48,9 +48,10 @@ Requires React 19 or later. Read [Getting started](https://lightbox.frontend.sup
 - [Gestures](https://lightbox.frontend.supply/docs/gestures)
 - [Styling](https://lightbox.frontend.supply/docs/styling)
 - [API reference](https://lightbox.frontend.supply/docs/api)
-- Examples: [feed](https://lightbox.frontend.supply/docs/examples/feed),
+- Examples: [chat](https://lightbox.frontend.supply/docs/examples/chat),
   [listing gallery](https://lightbox.frontend.supply/docs/examples/listing),
-  [stories](https://lightbox.frontend.supply/docs/examples/stories)
+  [stories](https://lightbox.frontend.supply/docs/examples/stories),
+  [product page](https://lightbox.frontend.supply/docs/examples/product)
 
 ## License
 

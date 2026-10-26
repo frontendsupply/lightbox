@@ -1,16 +1,14 @@
 ---
 layout: ../../../layouts/Docs.astro
 title: "Stories"
-description: "A stories viewer: round avatars morph into 9:16 cards, you tap through each person's frames, and a 3D cube turns to the next person."
+description: "Round avatars morph into 9:16 stories. Tap through each person's photos and videos, and a 3D cube turns to the next person."
 ---
 import Code from '../../../components/Code.astro'
 import Demo from '../../../components/Demo.astro'
 import Stories from '../../../components/demos/Stories.tsx'
 import source from '../../../components/demos/Stories.tsx?raw'
 
-Each person has several frames: tap the right side (or →) for the next, the left side (or ←) for the previous, hold to pause. Past the last frame the cube turns to the next person: the cards are the faces of a 3D box, turned by the native scroll position with a pure-CSS scroll-driven animation, while the arrows stay put. Pull down to dismiss.
-
-Some frames are videos: `Image` renders them through its `render` prop as a `<video>`, so they open, swipe and dismiss like photos. The bar follows the video's clock, and the speaker button turns the sound on for every story. Photos from Unsplash, videos and sounds from Pixabay.
+Photos from Unsplash, videos and sounds from Pixabay.
 
 <Demo><Stories client:load /></Demo>
 

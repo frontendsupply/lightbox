@@ -202,5 +202,5 @@ Built in, nothing to configure: swipe or drag to page, pinch, double-tap and Ctr
 - [Gestures](https://lightbox.frontend.supply/docs/gestures.md)
 - [Styling and the styled recipe](https://lightbox.frontend.supply/docs/styling.md)
 - [API reference](https://lightbox.frontend.supply/docs/api.md)
-- Examples: [feed](https://lightbox.frontend.supply/docs/examples/feed.md), [listing gallery](https://lightbox.frontend.supply/docs/examples/listing.md), [stories](https://lightbox.frontend.supply/docs/examples/stories.md)
+- Examples: [chat](https://lightbox.frontend.supply/docs/examples/chat.md), [listing gallery](https://lightbox.frontend.supply/docs/examples/listing.md), [stories](https://lightbox.frontend.supply/docs/examples/stories.md), [product page](https://lightbox.frontend.supply/docs/examples/product.md)
 - [Report an issue](https://github.com/frontendsupply/lightbox/issues)

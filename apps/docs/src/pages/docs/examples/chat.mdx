@@ -1,0 +1,13 @@
+---
+layout: ../../../layouts/Docs.astro
+title: "Chat"
+description: "A message thread with a +N album. Every photo in the chat opens in one viewer, and the chat scrolls along behind it."
+---
+import Code from '../../../components/Code.astro'
+import Demo from '../../../components/Demo.astro'
+import Chat from '../../../components/demos/Chat.tsx'
+import source from '../../../components/demos/Chat.tsx?raw'
+
+<Demo class="mx-auto max-w-sm"><Chat client:load /></Demo>
+
+<Code code={source} lang="tsx" />

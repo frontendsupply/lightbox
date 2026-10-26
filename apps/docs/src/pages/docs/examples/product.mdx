@@ -1,0 +1,15 @@
+---
+layout: ../../../layouts/Docs.astro
+title: "Product"
+description: "A product page with scroll-to-zoom and a frosted backdrop. Closing lands on whichever photo you were viewing."
+---
+import Code from '../../../components/Code.astro'
+import Demo from '../../../components/Demo.astro'
+import Product from '../../../components/demos/Product.tsx'
+import source from '../../../components/demos/Product.tsx?raw'
+
+Photos by Mojtaba Fahiminia on Unsplash.
+
+<Demo><Product client:load /></Demo>
+
+<Code code={source} lang="tsx" />
