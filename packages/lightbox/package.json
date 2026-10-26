@@ -1,6 +1,6 @@
 {
   "name": "@frontendsupply/lightbox",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Headless React lightbox and image viewer with pinch zoom, swipe, pull to dismiss and morph animations. Built on Base UI and Motion.",
   "license": "MIT",
   "author": {
