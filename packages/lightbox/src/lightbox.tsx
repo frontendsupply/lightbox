@@ -162,6 +162,12 @@ const FADE: Transition = { duration: 0.24, ease: 'easeInOut' }
 const SNAP = 'x mandatory'
 const OVERLAY: React.CSSProperties = { position: 'fixed', inset: 0 }
 
+// Blossom adds mouse drag on top of native scroll-snap. Like Blossom's own components, only load it where
+// there's a mouse — and fetch it before the first open, so parsing it doesn't land on the open morph.
+const finePointer = () => matchMedia('(hover: hover) and (pointer: fine)').matches
+let blossomModule: Promise<typeof import('@blossom-carousel/core')> | null = null
+const loadBlossom = () => (blossomModule ??= import('@blossom-carousel/core'))
+
 /**
  * Lock page scroll without reserving a scrollbar gutter: browsers paint a reserved gutter on top of fixed
  * content, which would leave a strip down the side of a full-screen viewer. Body padding absorbs the
@@ -380,6 +386,10 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
 
   const isOpen = phase !== 'closed'
   React.useLayoutEffect(() => (isOpen ? lockScroll() : undefined), [isOpen])
+
+  React.useEffect(() => {
+    if (finePointer()) loadBlossom()
+  }, [])
 
   const indexChange = useEvent(() => onIndexChange?.(index))
   // biome-ignore lint/correctness/useExhaustiveDependencies: `index` is the trigger; indexChange reads it fresh
@@ -612,28 +622,34 @@ function Viewport({ render, children, ...props }: useRender.ComponentProps<'div'
       onScrollIndex(clamp(Math.round(p), 0, count - 1))
     }
     el.addEventListener('scroll', onScroll, { passive: true })
-
-    // Swiping is native scroll-snap — touch and trackpad get the OS's own physics. Blossom adds mouse
-    // drag on top (and stays out of the way of trackpads: its wheel listener is passive). Like Blossom's
-    // own components, only load it where there's a mouse.
-    let blossom: { destroy(): void } | null = null
-    let cancelled = false
-    if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
-      import('@blossom-carousel/core').then(({ Blossom }) => {
-        if (cancelled) return
-        const b = Blossom(el, { repeat: false })
-        b.init()
-        blossom = b
-      })
-    }
     return () => {
-      cancelled = true
       fading?.finish()
-      blossom?.destroy()
       el.removeEventListener('scroll', onScroll)
       viewport.current = null
     }
   }, [viewport, onScrollIndex, count, progress, reducedMotion])
+
+  // Swiping is native scroll-snap — touch and trackpad get the OS's own physics. Blossom adds mouse drag on
+  // top (and stays out of the way of trackpads: its wheel listener is passive). It starts once the open
+  // morph has finished: init turns snapping off and re-measures every slide whenever their content changes.
+  const [dragReady, setDragReady] = React.useState(false)
+  if (ctx.phase === 'open' && !dragReady) setDragReady(true)
+  React.useEffect(() => {
+    const el = ref.current
+    if (!el || !dragReady || !finePointer()) return
+    let blossom: { destroy(): void } | null = null
+    let cancelled = false
+    loadBlossom().then(({ Blossom }) => {
+      if (cancelled) return
+      const b = Blossom(el, { repeat: false })
+      b.init()
+      blossom = b
+    })
+    return () => {
+      cancelled = true
+      blossom?.destroy()
+    }
+  }, [dragReady])
 
   return useRender({
     defaultTagName: 'div',
@@ -680,7 +696,10 @@ function Slide({ index, onTap, render, children, ...props }: LightboxSlideProps)
   const ctx = useCtx()
   const current = index === ctx.index
   // ponytail: renders index±2 only; a 10k-item gallery would want real virtualisation of the slides too.
-  const near = Math.abs(index - ctx.index) <= 2 || index === ctx.held
+  // While opening, only the slide being opened: neighbours' full-size images would download and decode
+  // alongside the morph.
+  const near =
+    index === ctx.index || index === ctx.held || (ctx.phase !== 'opening' && Math.abs(index - ctx.index) <= 2)
   const slide = React.useMemo(() => ({ index, onTap }), [index, onTap])
   const element = useRender({
     defaultTagName: 'div',
