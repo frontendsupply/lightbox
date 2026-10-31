@@ -166,7 +166,12 @@ const OVERLAY: React.CSSProperties = { position: 'fixed', inset: 0 }
 // there's a mouse — and fetch it before the first open, so parsing it doesn't land on the open morph.
 const finePointer = () => matchMedia('(hover: hover) and (pointer: fine)').matches
 let blossomModule: Promise<typeof import('@blossom-carousel/core')> | null = null
-const loadBlossom = () => (blossomModule ??= import('@blossom-carousel/core'))
+// A failed load (offline, a deploy renamed the chunk) is forgotten, so the next open tries again.
+const loadBlossom = () =>
+  (blossomModule ??= import('@blossom-carousel/core').catch((e) => {
+    blossomModule = null
+    throw e
+  }))
 
 /**
  * Lock page scroll without reserving a scrollbar gutter: browsers paint a reserved gutter on top of fixed
@@ -388,7 +393,7 @@ function Root<T extends LightboxItem>(props: LightboxRootProps<T>) {
   React.useLayoutEffect(() => (isOpen ? lockScroll() : undefined), [isOpen])
 
   React.useEffect(() => {
-    if (finePointer()) loadBlossom()
+    if (finePointer()) loadBlossom().catch(() => {}) // just a head start; opening retries
   }, [])
 
   const indexChange = useEvent(() => onIndexChange?.(index))
